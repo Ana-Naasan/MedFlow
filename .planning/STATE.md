@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-05-30 — Roadmap created from PRD (5 phases mirroring M0–M4); 53/53 v1 requirements mapped
+Last activity: 2026-05-30 — Roadmap created from PRD (5 phases mirroring M0–M4); 55/55 v1 requirements mapped (added OPS-01/02 DevOps track, owner Hamza)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -68,5 +68,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-30
-Stopped at: ROADMAP.md and STATE.md created; REQUIREMENTS.md traceability confirmed (53/53 mapped)
+Stopped at: ROADMAP.md and STATE.md created; REQUIREMENTS.md traceability confirmed (55/55 mapped)
 Resume file: None
