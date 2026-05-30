@@ -90,6 +90,11 @@
 - [ ] **INFRA-04**: `main` is protected (PR + ≥1 review + green required checks + squash/linear history) with `CODEOWNERS` routing reviewers by area
 - [ ] **INFRA-05**: Demo freeze — feature freeze, pre-warmed cache, seeded-local primary plus a recorded fallback run, and a dry-run checklist
 
+### OPS — DevOps & external services (PRD §3, §24) — owner: Hamza
+
+- [ ] **OPS-01**: External-service provisioning & secrets wiring — a Google Cloud project + Gemini API credentials (`google-genai`), an openFDA API key, and the dev token are provisioned and wired through `.env` (with a committed `.env.example` per PRD §24), so the reasoning core and knowledge lookups run from a clean clone
+- [ ] **OPS-02**: Demo hosting/deployment — the app (API + app Postgres) is deployed to the chosen target (Vultr or Google Cloud) for the live demo, with the seeded-local + recorded-fallback path kept as the guaranteed primary (PRD §3 deploy is optional, §21–§22 freeze); optional, do not let it jeopardize the spine
+
 ## v2 Requirements
 
 Deferred — tracked, not in the v1 roadmap.
@@ -132,6 +137,7 @@ Phase mapping mirrors PRD §22 (hour-6 gate) and §23 (build order). Mapped into
 | INFRA-01 | Phase 1 | M0 Setup | Pending |
 | INFRA-02 | Phase 1 | M0 Setup | Pending |
 | INFRA-04 | Phase 1 | M0 Setup | Pending |
+| OPS-01 | Phase 1 | M0 Setup | Pending |
 | CONN-02 | Phase 2 | M1 Hour-6 Slice | Pending |
 | CACHE-01 | Phase 2 | M1 Hour-6 Slice | Pending |
 | CACHE-02 | Phase 2 | M1 Hour-6 Slice | Pending |
@@ -172,13 +178,14 @@ Phase mapping mirrors PRD §22 (hour-6 gate) and §23 (build order). Mapped into
 | FE-06 | Phase 5 | M4 Polish & Freeze | Pending |
 | INFRA-03 | Phase 5 | M4 Polish & Freeze | Pending |
 | INFRA-05 | Phase 5 | M4 Polish & Freeze | Pending |
+| OPS-02 | Phase 5 | M4 Polish & Freeze | Pending |
 
 **Coverage:**
-- v1 requirements: 53 total (FHIR 4, CONN 6, CACHE 4, KNOW 5, REASON 8, API 8, FE 7, DATA 3, SEC 3, INFRA 5)
-- Mapped to phases: 53
+- v1 requirements: 55 total (FHIR 4, CONN 6, CACHE 4, KNOW 5, REASON 8, API 8, FE 7, DATA 3, SEC 3, INFRA 5, OPS 2)
+- Mapped to phases: 55
 - Unmapped: 0 ✓
 
-> Note: the prior "51 total" figure was an undercount of the same checklist; the verified per-category sum is 53. No requirements were added or removed — only the tally was corrected during roadmap creation.
+> Note: the prior "51 total" figure was an undercount of the same checklist; the verified per-category sum was 53. OPS-01/OPS-02 (DevOps & external-service provisioning, owner Hamza) were added 2026-05-30, bringing the total to 55. All map to exactly one phase.
 
 ---
 *Requirements defined: 2026-05-30*

@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 1: Foundation & Contracts (M0 Setup)
 **Goal**: The shared spine everything builds on exists and is proven: the FHIR subset validates, the flattener is deterministic, the Provider contract is fixed, and the OpenAPI contract stub generates a typed frontend client — so all connectors and the frontend can develop in parallel from here.
 **Depends on**: Nothing (first phase)
-**Requirements**: FHIR-01, FHIR-02, FHIR-03, FHIR-04, CONN-01, CONN-06, SEC-02, SEC-03, API-08, FE-07, INFRA-01, INFRA-02, INFRA-04
+**Requirements**: FHIR-01, FHIR-02, FHIR-03, FHIR-04, CONN-01, CONN-06, SEC-02, SEC-03, API-08, FE-07, INFRA-01, INFRA-02, INFRA-04, OPS-01
 **Success Criteria** (what must be TRUE):
   1. From a clean clone, `docker-compose up` brings up the app + `institution_a` + `institution_b` Postgres, the backend serves `/health` + `/docs`, the frontend boots with `next dev`, and `pytest` runs green.
   2. The system builds and `model_validate()`s one instance of all 6 R4B resources via `fhir.resources.R4B.*`, and Synthea `urn:uuid:` refs resolve to stable `ResourceType/id` literals.
@@ -35,6 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   - The FHIR subset (FHIR-01/02) feeds the flattener (FHIR-03/04), which feeds the reasoning core (Phase 2). Build order: subset builders + validate-all-6 → flattener against a hand-written bundle (PRD §23 steps 1–2). The R4B import gotcha must be killed here.
   - SEC-02 (MRN-keyed minimization, age-from-DOB, no name/address/phone/next-of-kin into reasoning) is a contract baked into the subset/flattener now so downstream reasoning never sees minimized fields.
   - API-08 / FE-07 establish `separate_input_output_schemas=False` slim DTOs so TS codegen doesn't choke on raw FHIR.
+  - **DevOps (OPS-01, owner Hamza):** provision the Google Cloud project + Gemini API credentials (`google-genai`) and the openFDA API key early and wire them through `.env`/`.env.example` (PRD §24). This is on the critical path for Phase 2 — the reasoning core (Gemini) and knowledge lookups (openFDA) cannot run end-to-end without it, so it must land in M0 even though it's exercised in M1.
 **Plans**: TBD
 **UI hint**: yes
 
@@ -94,7 +95,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 5: Polish & Freeze (M4)
 **Goal**: The demo is fast, observable, and bulletproof: the provider review flow is fully keyboard-driven, partial-data warnings are surfaced via structured logging, and the build is frozen with a pre-warmed cache and a recorded fallback so nothing can break on stage.
 **Depends on**: Phase 4
-**Requirements**: FE-06, INFRA-03, INFRA-05
+**Requirements**: FE-06, INFRA-03, INFRA-05, OPS-02
 **Success Criteria** (what must be TRUE):
   1. The provider review flow is fully keyboard-driven (approve / dismiss / next) with managed focus.
   2. Structured logging surfaces partial-data warnings and observability over the `ConnectorError` hierarchy.
@@ -102,6 +103,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Critical path / dependency notes**:
   - Polish/enrichment ships fast under the two-tier bar — these items do not require the full coverage gate, only that they work for the demo.
   - INFRA-05 (freeze, pre-warm, recorded fallback) is the last gate; per PRD §21 the cache is pre-warmed and a live ~10–15s "gathering" refresh pass is optional flourish, not the primary path.
+  - **DevOps (OPS-02, owner Hamza):** optional demo hosting/deployment to Vultr or Google Cloud (PRD §3 marks deploy optional). The seeded-local + recorded-fallback path (INFRA-05) is the guaranteed primary — hosting must never jeopardize the spine, so it lands here in M4, not earlier.
 **Plans**: TBD
 **UI hint**: yes
 
