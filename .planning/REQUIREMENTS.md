@@ -115,7 +115,7 @@ Deferred — tracked, not in the v1 roadmap.
 
 ## Traceability
 
-Phase mapping mirrors PRD §22 (hour-6 gate) and §23 (build order). Updated during roadmap creation.
+Phase mapping mirrors PRD §22 (hour-6 gate) and §23 (build order). Mapped into ROADMAP.md on 2026-05-30 — every v1 requirement assigned to exactly one phase, no orphans, no duplicates.
 
 | Requirement | Phase | Milestone | Status |
 |-------------|-------|-----------|--------|
@@ -174,10 +174,12 @@ Phase mapping mirrors PRD §22 (hour-6 gate) and §23 (build order). Updated dur
 | INFRA-05 | Phase 5 | M4 Polish & Freeze | Pending |
 
 **Coverage:**
-- v1 requirements: 51 total
-- Mapped to phases: 51
+- v1 requirements: 53 total (FHIR 4, CONN 6, CACHE 4, KNOW 5, REASON 8, API 8, FE 7, DATA 3, SEC 3, INFRA 5)
+- Mapped to phases: 53
 - Unmapped: 0 ✓
+
+> Note: the prior "51 total" figure was an undercount of the same checklist; the verified per-category sum is 53. No requirements were added or removed — only the tally was corrected during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after initial definition*
+*Last updated: 2026-05-30 — phase mapping confirmed in ROADMAP.md (53/53 mapped, no orphans, no duplicates)*
