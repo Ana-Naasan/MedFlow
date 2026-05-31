@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from backend.app.cache.models import AuditEvent
+from backend.app.cache.models import AuditEvent, HypothesisRecord
 from backend.app.main import app
 
 
@@ -77,6 +77,48 @@ def test_post_intake_unknown_connector_returns_404():
             headers=_HEADERS,
         )
     assert resp.status_code == 404
+
+
+def test_reintake_same_patient_is_idempotent():
+    """Re-running intake for the same patient_id yields identical hypothesis ids
+    (deterministic) and creates no duplicate hypothesis rows."""
+    with TestClient(app) as client:
+        first = client.post(
+            "/intake",
+            json={
+                "connector": "mock-fhir",
+                "source_patient_id": "DEMO-001",
+                "patient_id": "reintake-pat",
+            },
+            headers=_HEADERS,
+        )
+        second = client.post(
+            "/intake",
+            json={
+                "connector": "mock-fhir",
+                "source_patient_id": "DEMO-001",
+                "patient_id": "reintake-pat",
+            },
+            headers=_HEADERS,
+        )
+
+        factory = app.state.session_factory
+
+        async def _rows():
+            async with factory() as session:
+                result = await session.execute(
+                    select(HypothesisRecord).where(HypothesisRecord.patient_id == "reintake-pat")
+                )
+                return result.scalars().all()
+
+        rows = asyncio.run(_rows())
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    first_ids = first.json()["hypothesis_ids"]
+    second_ids = second.json()["hypothesis_ids"]
+    assert first_ids and first_ids == second_ids  # deterministic, stable across re-intake
+    assert len(rows) == len(first_ids)  # no duplicate hypothesis rows
 
 
 def test_post_intake_writes_audit_event():
