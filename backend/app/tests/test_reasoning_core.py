@@ -541,9 +541,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
