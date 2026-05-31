@@ -154,24 +154,18 @@ class TestGoldenPath:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    demo_flattened_text, demo_evidence
-                )
+                hypotheses = await run_reasoning(demo_flattened_text, demo_evidence)
 
         # At least one hypothesis survives verification
-        assert len(hypotheses) >= 1, (
-            "Expected at least one verified hypothesis for the demo patient"
-        )
+        assert (
+            len(hypotheses) >= 1
+        ), "Expected at least one verified hypothesis for the demo patient"
 
         # Each surviving hypothesis must have both resource and evidence citations
         for hyp in hypotheses:
             kinds = {c.kind for c in hyp.citations}
-            assert "resource" in kinds, (
-                f"Hypothesis '{hyp.title}' missing patient-fact citation"
-            )
-            assert "evidence" in kinds, (
-                f"Hypothesis '{hyp.title}' missing evidence citation"
-            )
+            assert "resource" in kinds, f"Hypothesis '{hyp.title}' missing patient-fact citation"
+            assert "evidence" in kinds, f"Hypothesis '{hyp.title}' missing evidence citation"
 
     @pytest.mark.asyncio
     async def test_hypotheses_have_required_fields(
@@ -222,9 +216,7 @@ class TestGoldenPath:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    demo_flattened_text, demo_evidence
-                )
+                hypotheses = await run_reasoning(demo_flattened_text, demo_evidence)
 
         assert len(hypotheses) == 1
         h = hypotheses[0]

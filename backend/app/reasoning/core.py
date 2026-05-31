@@ -81,20 +81,15 @@ def parse_gemini_response(response_text: str) -> list[Hypothesis]:
     try:
         data: dict[str, Any] = json.loads(response_text)
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"Gemini returned malformed JSON: {exc}"
-        ) from exc
+        raise ValueError(f"Gemini returned malformed JSON: {exc}") from exc
 
     if not isinstance(data, dict):
-        raise ValueError(
-            f"Expected JSON object, got {type(data).__name__}"
-        )
+        raise ValueError(f"Expected JSON object, got {type(data).__name__}")
 
     raw_hypotheses = data.get("hypotheses", [])
     if not isinstance(raw_hypotheses, list):
         raise ValueError(
-            f"Expected 'hypotheses' to be a list, "
-            f"got {type(raw_hypotheses).__name__}"
+            f"Expected 'hypotheses' to be a list, " f"got {type(raw_hypotheses).__name__}"
         )
 
     results: list[Hypothesis] = []
@@ -184,9 +179,7 @@ def verify_citations(
     verified: list[Hypothesis] = []
     for h in hypotheses:
         # Filter out unknown citation kinds, then check surviving ones.
-        known_citations = [
-            c for c in h.citations if c.kind in _KNOWN_CITATION_KINDS
-        ]
+        known_citations = [c for c in h.citations if c.kind in _KNOWN_CITATION_KINDS]
         valid = True
         for c in known_citations:
             if c.kind == "resource":

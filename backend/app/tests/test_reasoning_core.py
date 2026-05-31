@@ -287,11 +287,7 @@ class TestParseGeminiResponse:
         assert hypotheses[0].citations == []
 
     def test_default_severity_and_confidence(self) -> None:
-        response = json.dumps(
-            {
-                "hypotheses": [{"title": "Defaults", "why": "test"}]
-            }
-        )
+        response = json.dumps({"hypotheses": [{"title": "Defaults", "why": "test"}]})
         hypotheses = parse_gemini_response(response)
         assert hypotheses[0].severity == "moderate"
         assert hypotheses[0].confidence == "low"
@@ -305,23 +301,17 @@ class TestVerifyCitations:
         self, sample_flattened_text: str, sample_hypothesis: Hypothesis
     ) -> None:
         evidence_ids = {"openfda:197885:adverse_events:total_count"}
-        result = verify_citations(
-            [sample_hypothesis], sample_flattened_text, evidence_ids
-        )
+        result = verify_citations([sample_hypothesis], sample_flattened_text, evidence_ids)
         assert len(result) == 1
 
-    def test_drops_when_resource_ref_missing(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_drops_when_resource_ref_missing(self, sample_flattened_text: str) -> None:
         h = Hypothesis(
             id="hyp-1",
             title="Test",
             why="reason",
             severity="minor",
             confidence="low",
-            citations=[
-                Citation(kind="resource", ref="NonExistent/xyz", label="Missing")
-            ],
+            citations=[Citation(kind="resource", ref="NonExistent/xyz", label="Missing")],
         )
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
@@ -329,14 +319,10 @@ class TestVerifyCitations:
     def test_drops_when_evidence_ref_missing(
         self, sample_flattened_text: str, sample_hypothesis: Hypothesis
     ) -> None:
-        result = verify_citations(
-            [sample_hypothesis], sample_flattened_text, set()
-        )
+        result = verify_citations([sample_hypothesis], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_unknown_citation_kind_dropped(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_unknown_citation_kind_dropped(self, sample_flattened_text: str) -> None:
         h = Hypothesis(
             id="hyp-1",
             title="Test",
@@ -353,9 +339,7 @@ class TestVerifyCitations:
         # The unknown kind should be stripped from the output
         assert all(c.kind in ("resource", "evidence") for c in result[0].citations)
 
-    def test_all_hypotheses_dropped_when_kind_unknown(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_all_hypotheses_dropped_when_kind_unknown(self, sample_flattened_text: str) -> None:
         """All citations have unknown kinds → no known citations → passes but empty list."""
         h = Hypothesis(
             id="hyp-1",
@@ -372,9 +356,7 @@ class TestVerifyCitations:
         result = verify_citations([], sample_flattened_text, set())
         assert result == []
 
-    def test_drops_when_any_citation_fails(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_drops_when_any_citation_fails(self, sample_flattened_text: str) -> None:
         h = Hypothesis(
             id="hyp-1",
             title="Mixed",
@@ -389,9 +371,7 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_ref_with_brackets_still_matches(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_ref_with_brackets_still_matches(self, sample_flattened_text: str) -> None:
         """Bracketed refs are stripped before matching."""
         h = Hypothesis(
             id="hyp-1",
@@ -410,9 +390,7 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 1
 
-    def test_zero_citation_hypothesis_dropped(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_zero_citation_hypothesis_dropped(self, sample_flattened_text: str) -> None:
         """Hypothesis with zero known citations is dropped (bug #2 fix)."""
         h = Hypothesis(
             id="hyp-1",
@@ -425,9 +403,7 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_all_unknown_kinds_dropped(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_all_unknown_kinds_dropped(self, sample_flattened_text: str) -> None:
         """Hypothesis with only unknown citation kinds is dropped."""
         h = Hypothesis(
             id="hyp-1",
@@ -506,9 +482,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert len(hypotheses) == 1
         h = hypotheses[0]
@@ -540,9 +514,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
@@ -567,9 +539,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
@@ -597,9 +567,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
@@ -647,8 +615,6 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
