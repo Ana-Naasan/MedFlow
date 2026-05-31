@@ -17,7 +17,7 @@ import json
 import os
 import re
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NamedTuple
 
 import httpx
 from google.genai import Client, types
@@ -176,6 +176,148 @@ def _strip_brackets(ref: str) -> str:
     return ref.strip("[]") if ref.startswith("[") else ref
 
 
+# ── Symptom ↔ MedDRA reaction match (REASON-05) ─────────────────────────────
+
+# Curated symptom→synonym bridge: maps a canonical symptom bucket to the
+# alternate strings clinicians / FAERS MedDRA terms commonly use for it. The
+# bridge is INTENTIONALLY conservative and clinician-reviewable — it is a
+# string-matching aid, NOT a clinical ontology, and does not bypass the
+# citation verifier (every surfaced match is gated downstream like any other
+# evidence reference). Extend with clinical judgement (see PRD §12 REASON-05).
+_SYMPTOM_SYNONYMS: dict[str, list[str]] = {
+    "bleeding": ["hemorrhage", "haemorrhage", "blood", "bleed", "bruising", "bruise"],
+    "nausea": ["nauseous", "vomiting", "emesis", "sick to stomach"],
+    "fatigue": ["tired", "weakness", "lethargy", "exhaustion"],
+    "pain": ["ache", "discomfort", "soreness"],
+    "dizziness": ["vertigo", "lightheaded", "dizzy", "syncope"],
+    "rash": ["urticaria", "hives", "skin reaction", "dermatitis"],
+    "swelling": ["edema", "oedema", "swollen"],
+    "confusion": ["cognitive", "disorientation", "mental status"],
+}
+
+# Observation lines in the flattened context carry the patient's symptom /
+# observation free-text. Anchored to line start (MULTILINE), mirroring _TAG_RE,
+# so only the flattener's real leading tag is treated as a patient symptom — an
+# embedded "[Observation/...]" substring inside source-controlled free text
+# cannot forge a symptom line.
+_OBSERVATION_LINE_RE = re.compile(r"^\[Observation/[a-zA-Z0-9_.:-]+]\s*(.+)$", re.MULTILINE)
+
+
+class SymptomReactionMatch(NamedTuple):
+    """A curated link between patient symptom text and a FAERS reaction term.
+
+    Attributes
+    ----------
+    symptom_text:
+        The Observation line's free-text (the patient-reported symptom).
+    reaction_term:
+        The synonym/term that matched within an evidence snippet's label.
+    evidence_id:
+        The stable id of the evidence snippet the term was found in — the same
+        id the citation verifier resolves against (matches do NOT bypass it).
+    """
+
+    symptom_text: str
+    reaction_term: str
+    evidence_id: str
+
+
+def _extract_observation_texts(flattened_text: str) -> list[str]:
+    """Return the free-text of every ``[Observation/...]`` line, in order."""
+    return [m.strip() for m in _OBSERVATION_LINE_RE.findall(flattened_text)]
+
+
+def _candidate_terms(symptom_text: str) -> list[str]:
+    """Build the case-insensitive search terms for one symptom line.
+
+    For every canonical bucket whose key OR one of its synonyms appears in the
+    symptom text, the canonical key and all its synonyms become candidate terms
+    to look for in the evidence labels. This is what lets a symptom worded as
+    "tired" reach the FAERS term "fatigue" (and vice-versa).
+    """
+    lowered = symptom_text.lower()
+    terms: list[str] = []
+    seen: set[str] = set()
+    for canonical, synonyms in _SYMPTOM_SYNONYMS.items():
+        bucket = [canonical, *synonyms]
+        if any(word in lowered for word in bucket):
+            for word in bucket:
+                if word not in seen:
+                    seen.add(word)
+                    terms.append(word)
+    return terms
+
+
+def match_symptoms_to_reactions(
+    flattened_text: str,
+    evidence: Sequence[EvidenceSnippet],
+) -> list[SymptomReactionMatch]:
+    """Bridge patient symptom text to FAERS/MedDRA reaction terms (REASON-05).
+
+    Each ``[Observation/...]`` line's free-text is matched, case-insensitively
+    and via the curated synonym bridge, against the reaction text carried in the
+    evidence snippets openFDA returned. A match is recorded as
+    ``(symptom_text, reaction_term, evidence_snippet_id)``.
+
+    The match is a *prompt aid only*: it surfaces a candidate link for the model
+    to reason about, but the surviving hypotheses are still gated by the citation
+    verifier — a match never bypasses ``verify_citations`` (REASON-02).
+
+    Parameters
+    ----------
+    flattened_text:
+        Tagged markdown from ``flatten_to_tagged_text`` (Observation lines hold
+        the patient's symptoms / observations).
+    evidence:
+        Evidence snippets whose ``label`` text carries reaction terms (e.g.
+        "Most-reported reactions: nausea, bleeding...").
+
+    Returns
+    -------
+    list[SymptomReactionMatch]
+        One entry per (symptom line, reaction term, evidence snippet) match.
+        Deduplicated; empty when nothing links.
+    """
+    observations = _extract_observation_texts(flattened_text)
+    if not observations:
+        return []
+
+    matches: list[SymptomReactionMatch] = []
+    seen: set[tuple[str, str, str]] = set()
+    for symptom_text in observations:
+        terms = _candidate_terms(symptom_text)
+        if not terms:
+            continue
+        for snippet in evidence:
+            label_lower = snippet.label.lower()
+            for term in terms:
+                if term in label_lower:
+                    key = (symptom_text, term, snippet.id)
+                    if key not in seen:
+                        seen.add(key)
+                        matches.append(SymptomReactionMatch(symptom_text, term, snippet.id))
+    return matches
+
+
+def _format_symptom_matches(matches: Sequence[SymptomReactionMatch]) -> str:
+    """Render symptom↔reaction matches as a prompt context block (or empty str).
+
+    Returns an empty string when there are no matches so the caller can omit the
+    section entirely rather than injecting an empty heading.
+    """
+    if not matches:
+        return ""
+    lines = [f'- "{m.symptom_text}" ↔ "{m.reaction_term}" ({m.evidence_id})' for m in matches]
+    rendered = "\n".join(lines)
+    return (
+        "## Symptom–reaction matches (curated, candidate links — verify before relying)\n\n"
+        "Each line pairs a patient symptom/observation with a reaction term found in "
+        "the evidence cards above. These are candidate associations only; cite the "
+        "evidence card by its id and use associational phrasing.\n\n"
+        f"{rendered}"
+    )
+
+
 # ── Citation verifier (REASON-02) ──────────────────────────────────────────
 
 
@@ -274,6 +416,14 @@ async def run_reasoning(
         Verified, citation-gated hypotheses.
     """
     prompt = build_reasoning_prompt(flattened_text, evidence)
+
+    # REASON-05: surface curated symptom↔reaction matches as additional context.
+    # This only informs the model; the citation verifier below still gates every
+    # surviving hypothesis, so a match cannot bypass the safety bar.
+    matches = match_symptoms_to_reactions(flattened_text, evidence)
+    match_block = _format_symptom_matches(matches)
+    if match_block:
+        prompt = f"{prompt}{match_block}\n\n"
 
     client = _get_client()
     aio = client.aio
