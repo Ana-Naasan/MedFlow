@@ -272,6 +272,9 @@ async def confirm_hypothesis(
     row = await session.get(HypothesisRecord, id)
     if row is None:
         return None
+    if row.status == "confirmed":
+        # Idempotent: already confirmed — no state change, no duplicate audit row.
+        return row
     row.status = "confirmed"
     row.updated_at = _now()
     await session.flush()
@@ -319,17 +322,24 @@ async def dismiss_hypothesis(
 
     rows = result.scalars().all()
     dismissed_ids: list[str] = []
+    changed = 0
     for row in rows:
-        row.status = "dismissed"
-        row.updated_at = _now()
+        if row.status != "dismissed":
+            row.status = "dismissed"
+            row.updated_at = _now()
+            changed += 1
         dismissed_ids.append(row.id)
 
-    await session.flush()
-    await write_audit_event(
-        session,
-        event_type="hypothesis_dismissed",
-        resource_ref=f"hypothesis/{id}",
-        actor=actor,
-        patient_id=patient_id,
-    )
+    # Idempotent: only audit when something actually transitioned to dismissed.
+    # Re-dismissing an already-dismissed hypothesis is a no-op (no duplicate audit)
+    # but still returns the dismissed set so the endpoint stays 200, not 404.
+    if changed:
+        await session.flush()
+        await write_audit_event(
+            session,
+            event_type="hypothesis_dismissed",
+            resource_ref=f"hypothesis/{id}",
+            actor=actor,
+            patient_id=patient_id,
+        )
     return dismissed_ids

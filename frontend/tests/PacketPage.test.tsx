@@ -13,6 +13,10 @@ vi.mock("../components/SuggestionCard", () => ({
   ),
 }));
 
+vi.mock("../components/CompletenessIndicator", () => ({
+  CompletenessIndicator: () => <div data-testid="completeness-indicator" />,
+}));
+
 import { $api } from "../lib/api";
 import Page from "../app/(provider)/packet/page";
 
@@ -79,5 +83,33 @@ describe("ProviderPacketPage", () => {
     expect(
       screen.getByText("Possible medication-related bleeding risk")
     ).toBeInTheDocument();
+  });
+
+  it("renders CompletenessIndicator when packet has completeness data", () => {
+    const packetWithCompleteness = {
+      ...mockPacket,
+      completeness: [
+        { category: "Medications", documented: true, gap_note: null },
+        { category: "Labs", documented: false, gap_note: "Order BMP" },
+      ],
+    };
+    vi.mocked($api.useQuery).mockReturnValue({
+      data: packetWithCompleteness,
+      isLoading: false,
+      isError: false,
+    } as never);
+    render(<Page />);
+    expect(screen.getByTestId("completeness-indicator")).toBeInTheDocument();
+  });
+
+  it("does not render CompletenessIndicator when completeness is empty", () => {
+    const packetNoCompleteness = { ...mockPacket, completeness: [] };
+    vi.mocked($api.useQuery).mockReturnValue({
+      data: packetNoCompleteness,
+      isLoading: false,
+      isError: false,
+    } as never);
+    render(<Page />);
+    expect(screen.queryByTestId("completeness-indicator")).not.toBeInTheDocument();
   });
 });

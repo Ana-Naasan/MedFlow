@@ -7,9 +7,14 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Personal tooling / feedback (local only, not committed)
+FEEDBACK.txt
+mini-tests/
+
 # Local developer tooling (not part of the project)
 CLAUDE.md
 .claude/
+.pi/
 
 # Python
 __pycache__/

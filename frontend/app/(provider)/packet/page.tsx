@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { CompletenessIndicator } from "../../../components/CompletenessIndicator";
 import { SuggestionCard } from "../../../components/SuggestionCard";
 import { $api, apiClient } from "../../../lib/api";
 import type { DecisionPacket } from "../../../lib/types";
@@ -149,6 +150,8 @@ export default function ProviderPacketPage() {
     );
   }
 
+  const completeness = packet!.completeness ?? [];
+
   return (
     <main>
       <div className="shell">
@@ -157,36 +160,41 @@ export default function ProviderPacketPage() {
             {actionError}
           </p>
         )}
-        <section className="stack" aria-label="Hypothesis review">
-          {packet!.hypotheses.map((hypothesis, idx) => (
-            <SuggestionCard
-              key={hypothesis.id}
-              hypothesis={hypothesis}
-              patientId={packet!.patient_id}
-              status={resolved[hypothesis.id] ?? null}
-              isActing={acting.has(hypothesis.id)}
-              approveRef={(el) => {
-                approveRefs.current[idx] = el;
-              }}
-              onConfirm={() =>
-                handleConfirm(
-                  hypothesis.id,
-                  packet!.patient_id,
-                  idx,
-                  hypothesis.title
-                )
-              }
-              onDismiss={() =>
-                handleDismiss(
-                  hypothesis.id,
-                  packet!.patient_id,
-                  idx,
-                  hypothesis.title
-                )
-              }
-            />
-          ))}
-        </section>
+        <div className="packet-layout">
+          <section className="stack" aria-label="Hypothesis review">
+            {packet!.hypotheses.map((hypothesis, idx) => (
+              <SuggestionCard
+                key={hypothesis.id}
+                hypothesis={hypothesis}
+                patientId={packet!.patient_id}
+                status={resolved[hypothesis.id] ?? null}
+                isActing={acting.has(hypothesis.id)}
+                approveRef={(el) => {
+                  approveRefs.current[idx] = el;
+                }}
+                onConfirm={() =>
+                  handleConfirm(
+                    hypothesis.id,
+                    packet!.patient_id,
+                    idx,
+                    hypothesis.title
+                  )
+                }
+                onDismiss={() =>
+                  handleDismiss(
+                    hypothesis.id,
+                    packet!.patient_id,
+                    idx,
+                    hypothesis.title
+                  )
+                }
+              />
+            ))}
+          </section>
+          {completeness.length > 0 && (
+            <CompletenessIndicator completeness={completeness} />
+          )}
+        </div>
       </div>
     </main>
   );
