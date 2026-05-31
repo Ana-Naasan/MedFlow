@@ -31,6 +31,7 @@ class DrugResolution:
     input_name: str
     rxcui: str | None = None
     name: str | None = None
+    ingredient_rxcui: str | None = None
     atc_codes: list[str] = field(default_factory=list)
     resolved: bool = False
     match_quality: str = "failed"  # "exact" | "approximate" | "failed"
@@ -69,11 +70,20 @@ class DrugResolutionReport:
         return sum(1 for r in self.resolutions if not r.resolved)
 
 
+# ── Shared HTTP client ─────────────────────────────────────────────────────
+
+_client_instance: httpx.Client | None = None
+
+
+def _get_client() -> httpx.Client:
+    """Return a shared module-level HTTP client (reused across calls)."""
+    global _client_instance
+    if _client_instance is None:
+        _client_instance = httpx.Client(base_url=BASE_URL, timeout=10.0)
+    return _client_instance
+
+
 # ── Internal helpers ───────────────────────────────────────────────────────
-
-
-def _client() -> httpx.Client:
-    return httpx.Client(base_url=BASE_URL, timeout=10.0)
 
 
 def _lookup_name(name: str) -> str | None:
@@ -81,7 +91,7 @@ def _lookup_name(name: str) -> str | None:
     ``None`` when nothing matches.  Network errors are caught and return
     ``None`` so the caller can fall back to approximate match."""
     try:
-        resp = _client().get("/rxcui.json", params={"name": name})
+        resp = _get_client().get("/rxcui.json", params={"name": name})
         if resp.status_code != 200:
             return None
         body = resp.json()
@@ -96,7 +106,7 @@ def _approximate_match(name: str) -> str | None:
     candidate's RxCUI, or ``None``.  Network errors are caught and return
     ``None``."""
     try:
-        resp = _client().get(
+        resp = _get_client().get(
             "/approximateTerm.json", params={"term": name, "maxEntries": 1}
         )
         if resp.status_code != 200:
@@ -110,19 +120,45 @@ def _approximate_match(name: str) -> str | None:
         return None
 
 
-def _fetch_properties(rxcui: str) -> dict[str, Any]:
-    """Call ``allProperties.json`` and return the full propConcept list."""
+def _fetch_properties(rxcui: str) -> list[dict[str, Any]]:
+    """Call ``allProperties.json`` and return the propConcept list.
+
+    Returns an empty list when the endpoint fails, returns a non-200
+    status, or when ``propConcept`` is ``null``.
+    """
     try:
-        resp = _client().get(
+        resp = _get_client().get(
             f"/rxcui/{rxcui}/allProperties.json",
             params={"prop": "NAMES,CODES"},
         )
         if resp.status_code != 200:
-            return {}
+            return []
         body = resp.json()
-        return body.get("propConceptGroup", {}).get("propConcept", [])
+        prop_group = body.get("propConceptGroup") or {}
+        props = prop_group.get("propConcept") or []
+        # Defensive: skip non-dict entries in the array
+        return [p for p in props if isinstance(p, dict)]
     except httpx.RequestError:
-        return {}
+        return []
+
+
+def _fetch_ingredient(rxcui: str) -> str | None:
+    """Call ``REST/rxcui/{rxcui}/related.json?tty=IN`` and return the
+    first ingredient RxCUI, or ``None``."""
+    try:
+        resp = _get_client().get(f"/rxcui/{rxcui}/related.json", params={"tty": "IN"})
+        if resp.status_code != 200:
+            return None
+        body = resp.json()
+        groups = body.get("relatedGroup", {}).get("conceptGroup", [])
+        for g in groups:
+            if g.get("tty") == "IN":
+                props = g.get("conceptProperties") or []
+                if props:
+                    return props[0].get("rxcui") or None
+        return None
+    except httpx.RequestError:
+        return None
 
 
 # ── Public functions ───────────────────────────────────────────────────────
@@ -144,6 +180,9 @@ def resolve_drug(name: str) -> DrugResolution:
     -------
     DrugResolution
     """
+    if not name:
+        return DrugResolution(input_name=name, resolved=False, match_quality="failed")
+
     # Try exact lookup first
     rxcui = _lookup_name(name)
 
@@ -159,22 +198,30 @@ def resolve_drug(name: str) -> DrugResolution:
     # Fetch extra properties (ATC codes, canonical name)
     props = _fetch_properties(rxcui)
     atc_codes = [
-        p["propValue"]
+        p.get("propValue", "")
         for p in props
         if p.get("propName") == "ATC"
     ]
     display_name = (
         next(
-            (p["propValue"] for p in props if p.get("propCategory") == "NAMES"),
+            (
+                p.get("propValue", "")
+                for p in props
+                if p.get("propCategory") == "NAMES"
+            ),
             None,
         )
         or name
     )
 
+    # Fetch ingredient RxCUI (for downstream DDInter bridging)
+    ingredient_rxcui = _fetch_ingredient(rxcui)
+
     return DrugResolution(
         input_name=name,
         rxcui=rxcui,
         name=display_name,
+        ingredient_rxcui=ingredient_rxcui,
         atc_codes=atc_codes,
         resolved=True,
         match_quality=quality,
