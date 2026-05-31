@@ -19,7 +19,7 @@ Progress (Phase 1 / M0): [████████░░] ~80%
 
 ### Open PRs / In Review
 
-- **#51 (#17 hour-6 packet API slice, Hamza) — BLOCKED on CI**: `black --check` wants to reformat `backend/app/api/router.py`, `api/auth.py`, `cache/store.py` (ruff + tests pass; formatting only). Commented the one-line fix (`black .` + push); will review + merge once green. NOTE: this PR also introduces `cache/store.py` + `api/auth.py` — overlaps Bader's #12 cache / dev-auth territory; review for divergence before merge.
+- **#51 (#17 hour-6 packet API slice, Hamza) — BLOCKED on a real dependency gap (not just CI)**: I pushed the black fix (commit `4d6f1e9`, authored B2707, 3 files only) with Hamza's OK, so ruff+black are green. BUT review found `packet.py` imports `backend.app.providers.mock_fhir.MockFHIRProvider`, which **does not exist** anywhere yet — it's the MockFHIR connector, **issue #11 / CONN-02, not built**. black was masking it (CI order ruff→black→pytest); now CI fails at pytest (`ModuleNotFoundError: backend.app.providers.mock_fhir`), confirmed both locally and on the live run. `test_packet.py` imports `app`, so the whole suite goes red at collection. Commented two unblock paths on #51: (1) land #11 MockFHIR first then rebase, or (2) decouple `packet.py` to build from the merged seed bundle (`knowledge.loader.load_sample_bundle()`, #21) until #11 lands. **Awaiting decision; NOT merged.** Also flagged: #51's `cache/store.py` (in-memory TTL, explicitly a stand-in for #12) + `api/auth.py` overlap Bader's #12 cache / dev-auth — reconcile before merge.
 
 ### Done (on `planning`, green)
 
