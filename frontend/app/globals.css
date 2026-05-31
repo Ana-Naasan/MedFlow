@@ -349,6 +349,31 @@ mark.pdf-highlight-mark {
   padding: 1px 2px;
 }
 
+/* Data-gaps banner (partial-fetch notice, #73) — non-blocking warning above
+   the packet content. Distinct from .banner-error: this is informational, not
+   an action-required state. */
+.data-gaps-banner {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(180, 130, 50, 0.4);
+  border-left: 3px solid rgba(180, 130, 50, 0.9);
+  border-radius: 8px;
+  background: rgba(252, 211, 77, 0.18);
+}
+
+.data-gaps-banner-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--accent-strong);
+}
+
+.data-gaps-banner-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.85rem;
+}
+
 /* Completeness indicator panel */
 .completeness-panel {
   position: sticky;
