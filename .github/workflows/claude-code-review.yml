@@ -20,12 +20,16 @@ name: Claude Auto Review
 # `Task` from --allowedTools (collapses to a single-pass review), or switch
 # `--model claude-opus-4-8` → `claude-sonnet-4-6`.
 #
-# NOTE: does NOT retro-review PRs opened before it landed. Trigger a review on an
-# existing PR by pushing a commit or commenting `@claude review`.
+# Every non-draft PR is reviewed automatically — no reviewer assignment needed.
+# Triggers: opened (new PR), synchronize (new commits), reopened (re-opened PR),
+# and ready_for_review (a draft marked ready). Drafts are skipped until ready.
+#
+# NOTE: does NOT retro-review PRs opened before it landed — trigger one by pushing
+# a commit to (or re-opening / marking ready) the existing PR.
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   review:
