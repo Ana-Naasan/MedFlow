@@ -6,10 +6,10 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import text
+from sqlalchemy import distinct, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.cache.models import AuditEvent, CachedResource, EvidenceCard
+from backend.app.cache.models import AuditEvent, CachedResource, EvidenceCard, HypothesisRecord
 
 
 def _now() -> datetime:
@@ -227,3 +227,109 @@ async def write_audit_event(
     session.add(event)
     await session.flush()
     return event
+
+
+async def list_patient_ids_from_db(session: AsyncSession) -> list[str]:
+    """Return distinct patient_ids that have at least one cached resource."""
+    result = await session.execute(select(distinct(CachedResource.patient_id)))
+    return [row for (row,) in result]
+
+
+async def upsert_hypothesis(
+    session: AsyncSession,
+    *,
+    id: str,
+    patient_id: str,
+    title: str,
+    group: str | None = None,
+) -> HypothesisRecord:
+    """Insert or update a hypothesis record without changing its status."""
+    row = await session.get(HypothesisRecord, id)
+    if row is None:
+        row = HypothesisRecord(
+            id=id,
+            patient_id=patient_id,
+            title=title,
+            group=group,
+        )
+        session.add(row)
+    else:
+        row.title = title
+        row.group = group
+        row.updated_at = _now()
+    await session.flush()
+    return row
+
+
+async def confirm_hypothesis(
+    session: AsyncSession,
+    *,
+    id: str,
+    actor: str,
+    patient_id: str,
+) -> HypothesisRecord | None:
+    """Mark a hypothesis confirmed and write an audit event. Returns None if not found."""
+    row = await session.get(HypothesisRecord, id)
+    if row is None:
+        return None
+    row.status = "confirmed"
+    row.updated_at = _now()
+    await session.flush()
+    await write_audit_event(
+        session,
+        event_type="hypothesis_confirmed",
+        resource_ref=f"hypothesis/{id}",
+        actor=actor,
+        patient_id=patient_id,
+    )
+    return row
+
+
+async def dismiss_hypothesis(
+    session: AsyncSession,
+    *,
+    id: str,
+    actor: str,
+    patient_id: str,
+) -> list[str]:
+    """Dismiss a hypothesis and all similar ones (by group, then by title).
+
+    Returns the list of dismissed IDs. Returns an empty list if the target
+    hypothesis is not found.
+    """
+    target = await session.get(HypothesisRecord, id)
+    if target is None:
+        return []
+
+    # Build the query for siblings: same group (if set) or exact title match.
+    if target.group is not None:
+        result = await session.execute(
+            select(HypothesisRecord).where(
+                HypothesisRecord.patient_id == patient_id,
+                HypothesisRecord.group == target.group,
+            )
+        )
+    else:
+        result = await session.execute(
+            select(HypothesisRecord).where(
+                HypothesisRecord.patient_id == patient_id,
+                HypothesisRecord.title == target.title,
+            )
+        )
+
+    rows = result.scalars().all()
+    dismissed_ids: list[str] = []
+    for row in rows:
+        row.status = "dismissed"
+        row.updated_at = _now()
+        dismissed_ids.append(row.id)
+
+    await session.flush()
+    await write_audit_event(
+        session,
+        event_type="hypothesis_dismissed",
+        resource_ref=f"hypothesis/{id}",
+        actor=actor,
+        patient_id=patient_id,
+    )
+    return dismissed_ids

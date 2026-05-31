@@ -29,8 +29,11 @@ async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
 
 
 @router.get("")
-async def get_patients() -> list[dict[str, str]]:
-    return [{"id": patient_id} for patient_id in list_patient_ids()]
+async def get_patients(db: AsyncSession = Depends(get_db)) -> list[dict[str, str]]:  # noqa: B008
+    db_ids = set(await repo.list_patient_ids_from_db(db))
+    static_ids = set(list_patient_ids())
+    all_ids = sorted(static_ids | db_ids)
+    return [{"id": pid} for pid in all_ids]
 
 
 @router.get("/{patient_id}/packet")

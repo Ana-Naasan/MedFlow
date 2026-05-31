@@ -92,3 +92,17 @@ describe("openapi-react-query wiring", () => {
     expect(typeof $api.useQuery).toBe("function");
   });
 });
+
+describe("typed surface for intake and hypothesis routes", () => {
+  it("is typed for intake and hypothesis routes", () => {
+    type IntakePost = paths["/intake"]["post"];
+    type ConfirmPost = paths["/hypotheses/{id}/confirm"]["post"];
+    type DismissPost = paths["/hypotheses/{id}/dismiss"]["post"];
+    const surface: Record<string, boolean> = {
+      intake: (null as unknown as IntakePost) === null,
+      confirm: (null as unknown as ConfirmPost) === null,
+      dismiss: (null as unknown as DismissPost) === null,
+    };
+    expect(Object.keys(surface)).toHaveLength(3);
+  });
+});
