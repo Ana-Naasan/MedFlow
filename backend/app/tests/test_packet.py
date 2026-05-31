@@ -54,6 +54,41 @@ def test_patient_and_evidence_citations_resolve() -> None:
     assert evidence_response.json()["id"] == "openfda-label-amitriptyline"
 
 
+def test_pdf_sourced_resource_includes_span() -> None:
+    with TestClient(app) as client:
+        resp = client.get(
+            "/patients/DEMO-001/resource/MedicationStatement/med-warfarin",
+            headers=_auth_headers(),
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "span" in body
+    span = body["span"]
+    assert span["page"] == 2
+    assert span["snippet"] == "Warfarin 5 mg oral Anticoagulant Daily"
+
+
+def test_demo_001_evidence_card_resolves() -> None:
+    with TestClient(app) as client:
+        resp = client.get("/evidence/ddinter-warfarin-aspirin", headers=_auth_headers())
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "ddinter-warfarin-aspirin"
+
+
+def test_packet_includes_completeness() -> None:
+    with TestClient(app) as client:
+        resp = client.get("/patients/pat-001/packet", headers=_auth_headers())
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "completeness" in body
+    completeness = body["completeness"]
+    assert isinstance(completeness, list)
+    assert len(completeness) >= 1
+    first = completeness[0]
+    assert "category" in first
+    assert "documented" in first
+
+
 def test_list_patients_connectors_and_refresh() -> None:
     with TestClient(app) as client:
         patients = client.get("/patients", headers=_auth_headers())
