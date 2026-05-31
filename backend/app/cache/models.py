@@ -28,6 +28,8 @@ class CachedResource(Base):
     source_provider = Column(String, nullable=False)
     fetched_at = Column(DateTime(timezone=True), nullable=False, default=_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    # TTL for refresh-on-read (CACHE-02). NULL = never expires.
+    expires_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class EvidenceCard(Base):
