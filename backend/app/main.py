@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -33,9 +34,16 @@ def create_app() -> FastAPI:
         separate_input_output_schemas=False,
         lifespan=lifespan,
     )
+    # Local dev origin plus any extra origins from CORS_ALLOW_ORIGINS (comma-separated).
+    # The deployed Cloud Run frontend is matched by regex so it works across revisions
+    # and project numbers without hardcoding a single URL.
+    allowed_origins = ["http://localhost:3000"]
+    extra = os.getenv("CORS_ALLOW_ORIGINS", "")
+    allowed_origins += [o.strip() for o in extra.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=allowed_origins,
+        allow_origin_regex=r"https://umraa-frontend-.*\.run\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
