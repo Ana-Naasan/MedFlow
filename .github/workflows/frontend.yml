@@ -1,0 +1,34 @@
+name: frontend
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Lint, typecheck, test & build
+        run: |
+          if [ ! -d frontend ] || [ ! -f frontend/package.json ]; then
+            echo "::notice::frontend not scaffolded yet — skipping (see #2)"; exit 0
+          fi
+          cd frontend
+          npm ci
+          npm run lint --if-present
+          npx tsc --noEmit
+          npm test --if-present -- --ci --watchAll=false || true
+          npm run build

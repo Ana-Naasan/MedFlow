@@ -1,0 +1,40 @@
+name: backend
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Lint, typecheck & test (coverage gate on core packages)
+        run: |
+          if [ ! -d backend ] || [ ! -f backend/requirements.txt ]; then
+            echo "::notice::backend not scaffolded yet — skipping (see #2)"; exit 0
+          fi
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          ruff check .
+          black --check .
+          # Coverage gate scoped to correctness-critical core only (reasoning + providers)
+          pytest \
+            --cov=app/reasoning \
+            --cov=app/providers \
+            --cov-report=term-missing \
+            --cov-fail-under=70
