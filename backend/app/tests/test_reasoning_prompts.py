@@ -7,7 +7,6 @@ from backend.app.reasoning.prompts import (
     build_reasoning_prompt,
 )
 
-
 # ── _format_evidence tests ─────────────────────────────────────────────────
 
 
@@ -71,6 +70,14 @@ class TestBuildPrompt:
     def test_includes_system_instruction(self) -> None:
         prompt = build_reasoning_prompt("## Medications\n\n_(not documented)_", [])
         assert SYSTEM_INSTRUCTION in prompt
+
+    def test_system_instruction_enforces_associational_language(self) -> None:
+        """Non-negotiable output-language invariant must be in the prompt:
+        associational phrasing, no causation, no directives."""
+        lowered = SYSTEM_INSTRUCTION.lower()
+        assert "may be associated" in lowered
+        assert "caused by" in lowered  # named as forbidden
+        assert "stop" in lowered  # directive named as forbidden
 
     def test_includes_patient_section(self) -> None:
         patient_text = "## Medications\n\n[MedicationStatement/ms-001] Lisinopril — active"

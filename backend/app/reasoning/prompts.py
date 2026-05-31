@@ -9,7 +9,6 @@ from collections.abc import Sequence
 
 from backend.app.knowledge.openfda import EvidenceSnippet
 
-
 SYSTEM_INSTRUCTION = (
     "You are a clinical reasoning assistant. "
     "Analyse the patient's clinical data and evidence cards below, "
@@ -20,20 +19,26 @@ SYSTEM_INSTRUCTION = (
     "Do NOT invent or assume any facts that are not written here.\n"
     "2. Every suggestion MUST cite its sources using the exact tags you see:\n"
     "   - Patient facts use tags like `[MedicationStatement/ms-001]` — "
-    "use kind `\"resource\"` and ref `\"MedicationStatement/ms-001\"` (no brackets)\n"
+    'use kind `"resource"` and ref `"MedicationStatement/ms-001"` (no brackets)\n'
     "   - Evidence cards use their stable IDs like "
     "`openfda:197885:adverse_events:total_count` — "
-    "use kind `\"evidence\"` and ref set to the full ID\n"
-    "3. Provide a confidence level: `\"high\"`, `\"medium\"`, or `\"low\"`.\n"
-    "4. Provide a severity level: `\"critical\"`, `\"serious\"`, `\"moderate\"`, or `\"minor\"`.\n"
-    "5. If there is not enough information to form any suggestion, "
+    'use kind `"evidence"` and ref set to the full ID\n'
+    '3. Provide a confidence level: `"high"`, `"medium"`, or `"low"`.\n'
+    '4. Provide a severity level: `"critical"`, `"serious"`, `"moderate"`, or `"minor"`.\n'
+    "5. LANGUAGE — non-negotiable. Use only ASSOCIATIONAL phrasing: "
+    '"may be associated with — consider reviewing". '
+    'NEVER assert causation (do not write "caused by", "causes", "due to") '
+    'and NEVER give directives (do not write "stop", "start", "discontinue", '
+    '"increase", or "decrease" a drug). Describe missing data as '
+    '"unknown" or "not documented" — never "none".\n'
+    "6. If there is not enough information to form any suggestion, "
     'return `{"hypotheses": []}` — do NOT invent anything.\n\n'
     "## Output format\n"
     "Respond ONLY with a JSON object matching this structure — no other text:\n\n"
-    '```json\n'
-    '{\n'
+    "```json\n"
+    "{\n"
     '  "hypotheses": [\n'
-    '    {\n'
+    "    {\n"
     '      "title": "Short title describing the suggested link",\n'
     '      "why": "Explanation referencing specific data points from the text",\n'
     '      "severity": "critical|serious|moderate|minor",\n'
@@ -43,11 +48,11 @@ SYSTEM_INSTRUCTION = (
     '"label": "Brief description of the fact"},\n'
     '        {"kind": "evidence", "ref": "openfda:197885:adverse_events:total_count", '
     '"label": "Brief description of the evidence"}\n'
-    '      ]\n'
-    '    }\n'
-    '  ]\n'
-    '}\n'
-    '```\n\n'
+    "      ]\n"
+    "    }\n"
+    "  ]\n"
+    "}\n"
+    "```\n\n"
     "Now, respond with ONLY the JSON object."
 )
 
@@ -58,9 +63,7 @@ def _format_evidence(evidence: Sequence[EvidenceSnippet]) -> str:
         return "_(no evidence cards available)_"
     lines: list[str] = []
     for i, snippet in enumerate(evidence, 1):
-        lines.append(
-            f"{i}. [{snippet.id}] ({snippet.kind}) {snippet.label[:200]}"
-        )
+        lines.append(f"{i}. [{snippet.id}] ({snippet.kind}) {snippet.label[:200]}")
     return "\n".join(lines)
 
 
@@ -87,8 +90,4 @@ def build_reasoning_prompt(
     patient_section = f"## Patient Clinical Data\n\n{flattened_patient_text}"
     evidence_section = f"## Evidence Cards\n\n{evidence_text}"
 
-    return (
-        f"{SYSTEM_INSTRUCTION}\n\n"
-        f"{patient_section}\n\n"
-        f"{evidence_section}\n\n"
-    )
+    return f"{SYSTEM_INSTRUCTION}\n\n" f"{patient_section}\n\n" f"{evidence_section}\n\n"

@@ -10,13 +10,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.app.dtos import Hypothesis
 from backend.app.fhir.flatten import flatten_to_tagged_text
 from backend.app.knowledge.openfda import EvidenceSnippet
 from backend.app.reasoning.core import run_reasoning
 
-# Path to the mock_fhir snapshot
-_SNAPSHOT_PATH = Path("backend/app/seeds/mock_fhir_snapshot.json")
+# Path to the mock_fhir snapshot — anchored to this file so it resolves under
+# both the repo root and CI's `cd backend` (a relative literal breaks the latter).
+_SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / "seeds" / "mock_fhir_snapshot.json"
 
 # Demographics for the demo patient
 _DEMO_PATIENT_ID = "patient-example"
@@ -155,24 +155,18 @@ class TestGoldenPath:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    demo_flattened_text, demo_evidence
-                )
+                hypotheses = await run_reasoning(demo_flattened_text, demo_evidence)
 
         # At least one hypothesis survives verification
-        assert len(hypotheses) >= 1, (
-            "Expected at least one verified hypothesis for the demo patient"
-        )
+        assert (
+            len(hypotheses) >= 1
+        ), "Expected at least one verified hypothesis for the demo patient"
 
         # Each surviving hypothesis must have both resource and evidence citations
         for hyp in hypotheses:
             kinds = {c.kind for c in hyp.citations}
-            assert "resource" in kinds, (
-                f"Hypothesis '{hyp.title}' missing patient-fact citation"
-            )
-            assert "evidence" in kinds, (
-                f"Hypothesis '{hyp.title}' missing evidence citation"
-            )
+            assert "resource" in kinds, f"Hypothesis '{hyp.title}' missing patient-fact citation"
+            assert "evidence" in kinds, f"Hypothesis '{hyp.title}' missing evidence citation"
 
     @pytest.mark.asyncio
     async def test_hypotheses_have_required_fields(
@@ -223,9 +217,7 @@ class TestGoldenPath:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    demo_flattened_text, demo_evidence
-                )
+                hypotheses = await run_reasoning(demo_flattened_text, demo_evidence)
 
         assert len(hypotheses) == 1
         h = hypotheses[0]

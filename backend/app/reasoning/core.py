@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 from google.genai import Client, types
 from google.genai import errors as genai_errors
+from pydantic import ValidationError
 
 from backend.app.dtos import Citation, Hypothesis
 from backend.app.knowledge.openfda import EvidenceSnippet
@@ -36,7 +37,11 @@ DEFAULT_MODEL = "gemini-2.5-flash"
 _KNOWN_CITATION_KINDS: frozenset[str] = frozenset({"resource", "evidence"})
 
 # Regex to extract ``[ResourceType/id]`` from flattened patient text.
-_TAG_RE = re.compile(r"\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]")
+# Anchored to line start (MULTILINE): the flattener emits each real tag as the
+# leading token of its line, so anchoring prevents a ``[Type/id]`` substring
+# embedded in source-controlled free-text (a med name, an Observation value)
+# from being treated as a resolvable patient tag (forged-citation defence).
+_TAG_RE = re.compile(r"^\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]", re.MULTILINE)
 
 # ── Client factory ─────────────────────────────────────────────────────────
 
@@ -81,28 +86,23 @@ def parse_gemini_response(response_text: str) -> list[Hypothesis]:
     try:
         data: dict[str, Any] = json.loads(response_text)
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"Gemini returned malformed JSON: {exc}"
-        ) from exc
+        raise ValueError(f"Gemini returned malformed JSON: {exc}") from exc
 
     if not isinstance(data, dict):
-        raise ValueError(
-            f"Expected JSON object, got {type(data).__name__}"
-        )
+        raise ValueError(f"Expected JSON object, got {type(data).__name__}")
 
     raw_hypotheses = data.get("hypotheses", [])
     if not isinstance(raw_hypotheses, list):
         raise ValueError(
-            f"Expected 'hypotheses' to be a list, "
-            f"got {type(raw_hypotheses).__name__}"
+            f"Expected 'hypotheses' to be a list, " f"got {type(raw_hypotheses).__name__}"
         )
 
     results: list[Hypothesis] = []
     for i, raw in enumerate(raw_hypotheses):
         if not isinstance(raw, dict):
             continue
-        results.append(
-            Hypothesis(
+        try:
+            hypothesis = Hypothesis(
                 id=f"hyp-{i + 1}",
                 title=raw.get("title", ""),
                 why=raw.get("why", ""),
@@ -118,7 +118,12 @@ def parse_gemini_response(response_text: str) -> list[Hypothesis]:
                     if isinstance(c, dict)
                 ],
             )
-        )
+        except (ValidationError, TypeError):
+            # One drifting field type (LLMs occasionally emit null/number/array
+            # for a field) drops only THIS hypothesis, not the whole batch — the
+            # good, fully-citable hypotheses still reach verification. Fails closed.
+            continue
+        results.append(hypothesis)
     return results
 
 
@@ -184,9 +189,7 @@ def verify_citations(
     verified: list[Hypothesis] = []
     for h in hypotheses:
         # Filter out unknown citation kinds, then check surviving ones.
-        known_citations = [
-            c for c in h.citations if c.kind in _KNOWN_CITATION_KINDS
-        ]
+        known_citations = [c for c in h.citations if c.kind in _KNOWN_CITATION_KINDS]
         valid = True
         for c in known_citations:
             if c.kind == "resource":
@@ -254,8 +257,11 @@ async def run_reasoning(
                 temperature=0.0,
             ),
         )
-    except (genai_errors.ClientError, httpx.HTTPStatusError, httpx.RequestError):
-        # REASON-08: abstention — cannot produce any hypotheses
+    except (genai_errors.APIError, httpx.HTTPStatusError, httpx.RequestError):
+        # REASON-08: abstention — cannot produce any hypotheses.
+        # Catch the base genai APIError (not just ClientError): 5xx maps to the
+        # SIBLING ServerError (e.g. 503 "model overloaded", the most common
+        # transient Gemini failure), which must abstain, not crash.
         return []
 
     try:

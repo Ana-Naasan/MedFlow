@@ -131,6 +131,15 @@ class TestExtractPatientTags:
         assert "Observation/obs-001.a" in tags
         assert "Procedure/proc_002:b" in tags
 
+    def test_ignores_tag_embedded_in_free_text(self) -> None:
+        """Forged-citation defence: a [Type/id] substring inside a rendered
+        value (mid-line, source-controlled) must NOT count as a patient tag —
+        only the line-leading tag the flattener actually emits."""
+        text = "[Observation/obs-1] note saying see [Condition/forged-injected] here"
+        tags = _extract_patient_tags(text)
+        assert tags == {"Observation/obs-1"}
+        assert "Condition/forged-injected" not in tags
+
 
 # ── parse_gemini_response ──────────────────────────────────────────────────
 
@@ -170,6 +179,22 @@ class TestParseGeminiResponse:
     def test_empty_hypotheses(self) -> None:
         hypotheses = parse_gemini_response('{"hypotheses": []}')
         assert hypotheses == []
+
+    def test_one_malformed_hypothesis_drops_only_itself(self) -> None:
+        """LLM drift: a single hypothesis with a non-string field (severity=null)
+        must drop only ITSELF, not the whole batch — the valid, citable ones
+        still survive parsing. Fails closed without nuking the decision packet."""
+        response = json.dumps(
+            {
+                "hypotheses": [
+                    {"title": "Good A", "why": "x", "severity": "moderate", "confidence": "low"},
+                    {"title": "Bad", "why": "x", "severity": None, "confidence": "low"},
+                    {"title": "Good B", "why": "y", "severity": "serious", "confidence": "high"},
+                ]
+            }
+        )
+        hypotheses = parse_gemini_response(response)
+        assert [h.title for h in hypotheses] == ["Good A", "Good B"]
 
     def test_empty_response_raises(self) -> None:
         with pytest.raises(ValueError, match="empty response"):
@@ -287,11 +312,7 @@ class TestParseGeminiResponse:
         assert hypotheses[0].citations == []
 
     def test_default_severity_and_confidence(self) -> None:
-        response = json.dumps(
-            {
-                "hypotheses": [{"title": "Defaults", "why": "test"}]
-            }
-        )
+        response = json.dumps({"hypotheses": [{"title": "Defaults", "why": "test"}]})
         hypotheses = parse_gemini_response(response)
         assert hypotheses[0].severity == "moderate"
         assert hypotheses[0].confidence == "low"
@@ -305,23 +326,17 @@ class TestVerifyCitations:
         self, sample_flattened_text: str, sample_hypothesis: Hypothesis
     ) -> None:
         evidence_ids = {"openfda:197885:adverse_events:total_count"}
-        result = verify_citations(
-            [sample_hypothesis], sample_flattened_text, evidence_ids
-        )
+        result = verify_citations([sample_hypothesis], sample_flattened_text, evidence_ids)
         assert len(result) == 1
 
-    def test_drops_when_resource_ref_missing(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_drops_when_resource_ref_missing(self, sample_flattened_text: str) -> None:
         h = Hypothesis(
             id="hyp-1",
             title="Test",
             why="reason",
             severity="minor",
             confidence="low",
-            citations=[
-                Citation(kind="resource", ref="NonExistent/xyz", label="Missing")
-            ],
+            citations=[Citation(kind="resource", ref="NonExistent/xyz", label="Missing")],
         )
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
@@ -329,14 +344,10 @@ class TestVerifyCitations:
     def test_drops_when_evidence_ref_missing(
         self, sample_flattened_text: str, sample_hypothesis: Hypothesis
     ) -> None:
-        result = verify_citations(
-            [sample_hypothesis], sample_flattened_text, set()
-        )
+        result = verify_citations([sample_hypothesis], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_unknown_citation_kind_dropped(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_unknown_citation_kind_dropped(self, sample_flattened_text: str) -> None:
         h = Hypothesis(
             id="hyp-1",
             title="Test",
@@ -353,9 +364,7 @@ class TestVerifyCitations:
         # The unknown kind should be stripped from the output
         assert all(c.kind in ("resource", "evidence") for c in result[0].citations)
 
-    def test_all_hypotheses_dropped_when_kind_unknown(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_all_hypotheses_dropped_when_kind_unknown(self, sample_flattened_text: str) -> None:
         """All citations have unknown kinds → no known citations → passes but empty list."""
         h = Hypothesis(
             id="hyp-1",
@@ -372,9 +381,7 @@ class TestVerifyCitations:
         result = verify_citations([], sample_flattened_text, set())
         assert result == []
 
-    def test_drops_when_any_citation_fails(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_drops_when_any_citation_fails(self, sample_flattened_text: str) -> None:
         h = Hypothesis(
             id="hyp-1",
             title="Mixed",
@@ -389,9 +396,7 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_ref_with_brackets_still_matches(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_ref_with_brackets_still_matches(self, sample_flattened_text: str) -> None:
         """Bracketed refs are stripped before matching."""
         h = Hypothesis(
             id="hyp-1",
@@ -410,9 +415,7 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 1
 
-    def test_zero_citation_hypothesis_dropped(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_zero_citation_hypothesis_dropped(self, sample_flattened_text: str) -> None:
         """Hypothesis with zero known citations is dropped (bug #2 fix)."""
         h = Hypothesis(
             id="hyp-1",
@@ -425,9 +428,7 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_all_unknown_kinds_dropped(
-        self, sample_flattened_text: str
-    ) -> None:
+    def test_all_unknown_kinds_dropped(self, sample_flattened_text: str) -> None:
         """Hypothesis with only unknown citation kinds is dropped."""
         h = Hypothesis(
             id="hyp-1",
@@ -506,9 +507,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert len(hypotheses) == 1
         h = hypotheses[0]
@@ -540,9 +539,36 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
+
+        assert hypotheses == []
+
+    @pytest.mark.asyncio
+    async def test_abstention_on_gemini_server_error(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """REASON-08: a Gemini 5xx (ServerError, e.g. 503 'model overloaded' — a
+        SIBLING of ClientError under APIError) must abstain, not crash. Regression
+        for the except clause catching only ClientError (4xx)."""
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.side_effect = genai_errors.ServerError(
+            503, {}, MagicMock()
+        )
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
@@ -567,9 +593,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
@@ -597,9 +621,7 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
 
@@ -647,8 +669,6 @@ class TestRunReasoning:
 
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
             with patch("backend.app.reasoning.core.Client", mock_genai):
-                hypotheses = await run_reasoning(
-                    sample_flattened_text, sample_evidence_snippets
-                )
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []
