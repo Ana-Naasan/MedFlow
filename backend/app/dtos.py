@@ -13,10 +13,21 @@ class EvidenceSnippet:
     label: str
 
 
+class Span(BaseModel):
+    page: int = Field(..., description="1-based PDF page the snippet was extracted from.")
+    start: int = Field(..., description="Character offset where the snippet begins on the page.")
+    end: int = Field(..., description="Character offset where the snippet ends on the page.")
+    snippet: str = Field(..., description="Exact source text at [start:end] for the highlight.")
+
+
 class Citation(BaseModel):
     kind: str = Field(..., description="Citation type, such as resource or evidence card.")
     ref: str = Field(..., description="Resolvable citation target.")
     label: str | None = Field(default=None, description="Display label for the citation.")
+    source_span: Span | None = Field(
+        default=None,
+        description="PDF source span for a resource citation, enabling the highlight view.",
+    )
 
 
 class CategoryCompleteness(BaseModel):

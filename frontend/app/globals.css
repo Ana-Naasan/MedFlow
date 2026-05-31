@@ -327,14 +327,36 @@ button.chip-interactive.chip-knowledge:focus-visible {
   outline-color: #1d4ed8;
 }
 
-/* Patient-fact chip — from the patient chart (warm, non-interactive) */
+/* Patient-fact chip — from the patient chart. Interactive when it carries a
+   PDF source_span (opens the highlight view); rendered as .chip-static below
+   when it has no span, so it never looks clickable but does nothing (#97). */
 button.chip-interactive.chip-patient-fact {
   gap: 6px;
-  cursor: default;
 }
 
 button.chip-interactive.chip-patient-fact:hover {
+  background: rgba(140, 90, 61, 0.22);
+}
+
+/* Static (non-interactive) chip — a patient-fact citation with no source_span.
+   No button affordances: default cursor, no hover/pointer, not focusable. */
+.chip-static {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
   background: rgba(140, 90, 61, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: default;
+}
+
+.chip-static.chip-knowledge {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
 }
 
 /* Evidence side panel */
