@@ -1,4 +1,5 @@
 """PDF clinical connector — extracts structured records from text-layer PDFs."""
+
 from __future__ import annotations
 
 import re
@@ -26,9 +27,7 @@ _MEDS_TABLE_HEADER = re.compile(r"^Medication Dose/Route Indication Frequency$",
 
 # ── Per-field patterns ────────────────────────────────────────────────────────
 
-_PATIENT_RE = re.compile(
-    r"Patient:\s*(?P<name>.+?)\s+DOB:\s*(?P<dob>[A-Za-z]+ \d{1,2},? \d{4})"
-)
+_PATIENT_RE = re.compile(r"Patient:\s*(?P<name>.+?)\s+DOB:\s*(?P<dob>[A-Za-z]+ \d{1,2},? \d{4})")
 _MRN_RE = re.compile(r"MRN:\s*(?P<mrn>[A-Z0-9\-]+)")
 _GENDER_RE = re.compile(r"Gender:\s*(?P<gender>Male|Female|Other|Unknown)", re.IGNORECASE)
 _CONDITION_LINE_RE = re.compile(
@@ -43,9 +42,18 @@ _MED_LINE_RE = re.compile(
     re.MULTILINE,
 )
 _MONTHS = {
-    "january": "01", "february": "02", "march": "03", "april": "04",
-    "may": "05", "june": "06", "july": "07", "august": "08",
-    "september": "09", "october": "10", "november": "11", "december": "12",
+    "january": "01",
+    "february": "02",
+    "march": "03",
+    "april": "04",
+    "may": "05",
+    "june": "06",
+    "july": "07",
+    "august": "08",
+    "september": "09",
+    "october": "10",
+    "november": "11",
+    "december": "12",
 }
 
 
@@ -56,10 +64,10 @@ _MONTHS = {
 class TextSpan:
     """Character-level location within a single PDF page's extracted text."""
 
-    page: int    # 1-based page number
-    start: int   # inclusive char offset in page text
-    end: int     # exclusive char offset in page text
-    snippet: str # the exact text at [start:end] — use for highlight verification
+    page: int  # 1-based page number
+    start: int  # inclusive char offset in page text
+    end: int  # exclusive char offset in page text
+    snippet: str  # the exact text at [start:end] — use for highlight verification
 
 
 # ── Provider ──────────────────────────────────────────────────────────────────
@@ -186,12 +194,14 @@ def _extract_patient(
             patient["birthDate"] = dob
         span = _make_span(p1, m.group(0), 1)
         if span:
-            provenance.append(Provenance(
-                resource_ref=f"Patient/{patient_id}",
-                source_provider="pdf",
-                source_record_id="1",
-                span=_span_dict(span),
-            ))
+            provenance.append(
+                Provenance(
+                    resource_ref=f"Patient/{patient_id}",
+                    source_provider="pdf",
+                    source_record_id="1",
+                    span=_span_dict(span),
+                )
+            )
     else:
         warnings.append("Patient name/DOB not found in PDF")
 
@@ -224,20 +234,24 @@ def _extract_conditions(
                 end=m.end(),
                 snippet=m.group(0).strip(),
             )
-            conditions.append({
-                "resourceType": "Condition",
-                "id": condition_id,
-                "code": {
-                    "coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": icd_code}],
-                    "text": description,
-                },
-            })
-            provenance.append(Provenance(
-                resource_ref=f"Condition/{condition_id}",
-                source_provider="pdf",
-                source_record_id=str(page_num),
-                span=_span_dict(span),
-            ))
+            conditions.append(
+                {
+                    "resourceType": "Condition",
+                    "id": condition_id,
+                    "code": {
+                        "coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": icd_code}],
+                        "text": description,
+                    },
+                }
+            )
+            provenance.append(
+                Provenance(
+                    resource_ref=f"Condition/{condition_id}",
+                    source_provider="pdf",
+                    source_record_id=str(page_num),
+                    span=_span_dict(span),
+                )
+            )
     return conditions
 
 
@@ -272,18 +286,22 @@ def _extract_medications(
                 end=abs_end,
                 snippet=raw_line.strip(),
             )
-            meds.append({
-                "resourceType": "MedicationRequest",
-                "id": med_id,
-                "medicationCodeableConcept": {"text": name},
-                "dosageInstruction": [{"text": f"{dose} — {rest}"}],
-            })
-            provenance.append(Provenance(
-                resource_ref=f"MedicationRequest/{med_id}",
-                source_provider="pdf",
-                source_record_id=str(page_num),
-                span=_span_dict(span),
-            ))
+            meds.append(
+                {
+                    "resourceType": "MedicationRequest",
+                    "id": med_id,
+                    "medicationCodeableConcept": {"text": name},
+                    "dosageInstruction": [{"text": f"{dose} — {rest}"}],
+                }
+            )
+            provenance.append(
+                Provenance(
+                    resource_ref=f"MedicationRequest/{med_id}",
+                    source_provider="pdf",
+                    source_record_id=str(page_num),
+                    span=_span_dict(span),
+                )
+            )
 
     if not meds:
         warnings.append("No medications extracted — check PDF format")
@@ -302,7 +320,7 @@ def _medications_section(page_text: str) -> tuple[str, int] | None:
     hdr = _MEDS_TABLE_HEADER.search(section)
     if hdr:
         body_start = start + hdr.end()
-        body = page_text[body_start:start + len(section)]
+        body = page_text[body_start : start + len(section)]
         return body, body_start
 
     return section, start

@@ -4,6 +4,7 @@ Frozen fixture: backend/app/seeds/sample_clinical.pdf
 Do NOT regenerate this file unless the planted-interaction text needs to change;
 if you do, update _DEMO_PDF_SHA256 below and document the reason.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from backend.app.providers.base import Capability, ConnectorDataError, FetchResult
-from backend.app.providers.pdf import PDFProvider, extract_pages, _extract
+from backend.app.providers.pdf import PDFProvider, _extract, extract_pages
 
 _PDF = Path("backend/app/seeds/sample_clinical.pdf")
 _PATIENT_ID = "demo"
@@ -37,7 +38,11 @@ def pages() -> dict[int, str]:
 
 
 def _resources(result: FetchResult, resource_type: str) -> list[dict]:
-    return [e["resource"] for e in result.bundle["entry"] if e["resource"]["resourceType"] == resource_type]
+    return [
+        e["resource"]
+        for e in result.bundle["entry"]
+        if e["resource"]["resourceType"] == resource_type
+    ]
 
 
 # ── Freeze test ───────────────────────────────────────────────────────────────
@@ -154,12 +159,16 @@ def test_conditions_use_icd10_system(result: FetchResult) -> None:
 
 
 def test_warfarin_extracted(result: FetchResult) -> None:
-    names = [m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationRequest")]
+    names = [
+        m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationRequest")
+    ]
     assert any("Warfarin" in n for n in names)
 
 
 def test_aspirin_extracted(result: FetchResult) -> None:
-    names = [m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationRequest")]
+    names = [
+        m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationRequest")
+    ]
     assert any("Aspirin" in n for n in names)
 
 
@@ -167,7 +176,9 @@ def test_aspirin_extracted(result: FetchResult) -> None:
 
 
 def test_all_resources_have_provenance(result: FetchResult) -> None:
-    resource_refs = {e["resource"]["resourceType"] + "/" + e["resource"]["id"] for e in result.bundle["entry"]}
+    resource_refs = {
+        e["resource"]["resourceType"] + "/" + e["resource"]["id"] for e in result.bundle["entry"]
+    }
     prov_refs = {p.resource_ref for p in result.provenance}
     assert resource_refs == prov_refs
 
@@ -190,9 +201,9 @@ def test_snippet_length_matches_offsets(result: FetchResult) -> None:
         span = prov.span
         expected = span["end"] - span["start"]
         actual = len(span["snippet"])
-        assert expected == actual, (
-            f"{prov.resource_ref}: offset span={expected} != snippet len={actual}"
-        )
+        assert (
+            expected == actual
+        ), f"{prov.resource_ref}: offset span={expected} != snippet len={actual}"
 
 
 def test_quote_is_really_in_source_text(result: FetchResult, pages: dict[int, str]) -> None:
@@ -200,7 +211,7 @@ def test_quote_is_really_in_source_text(result: FetchResult, pages: dict[int, st
     for prov in result.provenance:
         span = prov.span
         page_text = pages[span["page"]]
-        actual = page_text[span["start"]: span["end"]]
+        actual = page_text[span["start"] : span["end"]]
         assert actual == span["snippet"], (
             f"{prov.resource_ref}: "
             f"page_text[{span['start']}:{span['end']}]={actual!r} "
@@ -211,25 +222,23 @@ def test_quote_is_really_in_source_text(result: FetchResult, pages: dict[int, st
 def test_warfarin_span_verifiable_in_source(result: FetchResult, pages: dict[int, str]) -> None:
     """Planted interaction: Warfarin provenance must reference exact source text."""
     warfarin_provs = [
-        p for p in result.provenance
-        if p.span and "Warfarin" in p.span.get("snippet", "")
+        p for p in result.provenance if p.span and "Warfarin" in p.span.get("snippet", "")
     ]
     assert warfarin_provs, "No Warfarin span in provenance"
     for prov in warfarin_provs:
         span = prov.span
-        source = pages[span["page"]][span["start"]: span["end"]]
+        source = pages[span["page"]][span["start"] : span["end"]]
         assert "Warfarin" in source
 
 
 def test_aspirin_span_verifiable_in_source(result: FetchResult, pages: dict[int, str]) -> None:
     aspirin_provs = [
-        p for p in result.provenance
-        if p.span and "Aspirin" in p.span.get("snippet", "")
+        p for p in result.provenance if p.span and "Aspirin" in p.span.get("snippet", "")
     ]
     assert aspirin_provs, "No Aspirin span in provenance"
     for prov in aspirin_provs:
         span = prov.span
-        source = pages[span["page"]][span["start"]: span["end"]]
+        source = pages[span["page"]][span["start"] : span["end"]]
         assert "Aspirin" in source
 
 
