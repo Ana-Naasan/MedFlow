@@ -50,6 +50,22 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: umraa-backend
+    env_file: .env
+    ports:
+      - "${APP_PORT:-8000}:8080"
+    depends_on:
+      app_db:
+        condition: service_healthy
+      institution_a:
+        condition: service_healthy
+      institution_b:
+        condition: service_healthy
+
 volumes:
   app_db_data:
   institution_a_data:
