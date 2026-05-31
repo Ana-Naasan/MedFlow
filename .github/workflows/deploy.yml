@@ -27,6 +27,7 @@ jobs:
       GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
       OPENFDA_API_KEY: ${{ secrets.OPENFDA_API_KEY }}
       DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,14 +60,15 @@ jobs:
             ${{ steps.img.outputs.backend }}:${{ steps.img.outputs.sha }}
             ${{ steps.img.outputs.backend }}:latest
 
-      - name: Build & push frontend → GHCR
+      - name: Build & push frontend (MedFlow) → GHCR
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
-          file: frontend/Dockerfile
+          context: ./doctorwebsite/medflow
+          file: doctorwebsite/medflow/Dockerfile
           push: true
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000' }}
+            NEXT_PUBLIC_API_TOKEN=${{ secrets.DEV_TOKEN }}
           tags: |
             ${{ steps.img.outputs.frontend }}:${{ steps.img.outputs.sha }}
             ${{ steps.img.outputs.frontend }}:latest
@@ -109,7 +111,8 @@ jobs:
           gcloud run deploy "$FRONTEND_SERVICE" \
             --image "$AR_BASE/umraa-frontend:${{ steps.img.outputs.sha }}" \
             --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
-            --platform managed --allow-unauthenticated --port 8080
+            --platform managed --allow-unauthenticated --port 8080 \
+            --set-env-vars "AUTH_SECRET=$AUTH_SECRET,AUTH_TRUST_HOST=true"
 
       - name: Skipped Cloud Run (GCP not configured)
         if: ${{ env.GCP_SA_KEY == '' }}
