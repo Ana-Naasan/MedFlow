@@ -2,9 +2,18 @@
 
 Intended to be called by the reasoning pipeline before DDInter lookups
 (#22).  When a drug cannot be matched the result has ``resolved=False``
-(flagged, never silently dropped).  If the overall input is too thin
-(fewer than half of names resolve) the report carries a
-``low_confidence_note``.
+(flagged, never silently dropped).  Network errors are also flagged
+via ``network_error=True`` so the caller can distinguish "not found"
+from "API unavailable."
+
+Every HTTP helper catches ``httpx.RequestError`` and returns ``None`` /
+``[]`` — transport failures never raise.  The caller sees
+``network_error=True`` on the final result and can act accordingly.
+
+This module uses a **shared synchronous** ``httpx.Client`` (module-level).
+The sibling ``openfda.py`` is async — they serve different callers.
+Call :func:`close_client` to release the connection pool when the
+application shuts down.
 """
 
 from __future__ import annotations
@@ -14,12 +23,7 @@ from typing import Any
 
 import httpx
 
-# ── Public API ─────────────────────────────────────────────────────────────
-
 BASE_URL = "https://rxnav.nlm.nih.gov/REST"
-
-# When fewer than this fraction of drug names resolve, the report carries
-# a low-confidence note.
 _THIN_INPUT_THRESHOLD = 0.5
 
 
@@ -34,6 +38,7 @@ class DrugResolution:
     atc_codes: list[str] = field(default_factory=list)
     resolved: bool = False
     match_quality: str = "failed"  # "exact" | "approximate" | "failed"
+    network_error: bool = False  # True when a transport error occurred
 
 
 @dataclass
@@ -42,6 +47,7 @@ class DrugResolutionReport:
 
     resolutions: list[DrugResolution] = field(default_factory=list)
     low_confidence_note: str | None = None
+    network_error: bool = False  # True when any resolution had a network error
 
     def __post_init__(self) -> None:
         if self.low_confidence_note is None and self.total_count > 0:
@@ -73,10 +79,7 @@ _client_instance: httpx.Client | None = None
 
 
 def _get_client() -> httpx.Client:
-    """Return a shared module-level HTTP client (reused across calls).
-
-    The client is closed via :func:`close_client` when the caller is done.
-    """
+    """Return a shared module-level HTTP client (reused across calls)."""
     global _client_instance
     if _client_instance is None:
         _client_instance = httpx.Client(base_url=BASE_URL, timeout=10.0)
@@ -84,7 +87,7 @@ def _get_client() -> httpx.Client:
 
 
 def close_client() -> None:
-    """Close the shared HTTP client, if one exists."""
+    """Close the shared HTTP client, if one exists, and reset for reuse."""
     global _client_instance
     if _client_instance is not None:
         _client_instance.close()
@@ -93,11 +96,16 @@ def close_client() -> None:
 
 # ── Internal helpers ───────────────────────────────────────────────────────
 
+# Sentinel returned by helpers to indicate a transport error (as opposed to a
+# genuine empty result).  The resolve_drug function checks for this.
+_NETWORK_ERROR = object()
+
 
 def _lookup_name(name: str) -> str | None:
-    """Call ``REST/rxcui.json?name=...`` and return the first RxCUI, or
-    ``None`` when nothing matches.  Network errors are caught and return
-    ``None`` so the caller can fall back to approximate match."""
+    """Return the first RxCUI for *name*, or ``None``.
+
+    Returns ``_NETWORK_ERROR`` when a transport error occurs.
+    """
     try:
         resp = _get_client().get("/rxcui.json", params={"name": name})
         if resp.status_code != 200:
@@ -106,13 +114,14 @@ def _lookup_name(name: str) -> str | None:
         ids = body.get("idGroup", {}).get("rxnormId", [])
         return ids[0] if ids else None
     except httpx.RequestError:
-        return None
+        return _NETWORK_ERROR  # type: ignore[return-value]
 
 
 def _approximate_match(name: str) -> str | None:
-    """Call ``REST/approximateTerm.json?term=...`` and return the top
-    candidate's RxCUI, or ``None``.  Network errors are caught and return
-    ``None``."""
+    """Return the top approximate RxCUI for *name*, or ``None``.
+
+    Returns ``_NETWORK_ERROR`` when a transport error occurs.
+    """
     try:
         resp = _get_client().get("/approximateTerm.json", params={"term": name, "maxEntries": 1})
         if resp.status_code != 200:
@@ -123,14 +132,14 @@ def _approximate_match(name: str) -> str | None:
             return None
         return candidates[0].get("rxcui") or None
     except httpx.RequestError:
-        return None
+        return _NETWORK_ERROR  # type: ignore[return-value]
 
 
-def _fetch_properties(rxcui: str) -> list[dict[str, Any]]:
-    """Call ``allProperties.json`` and return the propConcept list.
+def _fetch_properties(rxcui: str) -> list[dict[str, Any]] | object:
+    """Return the propConcept list for *rxcui*, ``[]`` on failure.
 
-    Returns an empty list when the endpoint fails, returns a non-200
-    status, or when ``propConcept`` is ``null``.
+    Returns ``_NETWORK_ERROR`` when a transport error occurs (as opposed to
+    a non-200 response, which yields ``[]``).
     """
     try:
         resp = _get_client().get(
@@ -142,15 +151,16 @@ def _fetch_properties(rxcui: str) -> list[dict[str, Any]]:
         body = resp.json()
         prop_group = body.get("propConceptGroup") or {}
         props = prop_group.get("propConcept") or []
-        # Defensive: skip non-dict entries in the array
         return [p for p in props if isinstance(p, dict)]
     except httpx.RequestError:
-        return []
+        return _NETWORK_ERROR
 
 
-def _fetch_ingredient(rxcui: str) -> str | None:
-    """Call ``REST/rxcui/{rxcui}/related.json?tty=IN`` and return the
-    first ingredient RxCUI, or ``None``."""
+def _fetch_ingredient(rxcui: str) -> str | None | object:
+    """Return the first ingredient RxCUI for *rxcui*, or ``None``.
+
+    Returns ``_NETWORK_ERROR`` when a transport error occurs.
+    """
     try:
         resp = _get_client().get(f"/rxcui/{rxcui}/related.json", params={"tty": "IN"})
         if resp.status_code != 200:
@@ -164,7 +174,7 @@ def _fetch_ingredient(rxcui: str) -> str | None:
                     return props[0].get("rxcui") or None
         return None
     except httpx.RequestError:
-        return None
+        return _NETWORK_ERROR
 
 
 # ── Public functions ───────────────────────────────────────────────────────
@@ -177,43 +187,57 @@ def resolve_drug(name: str) -> DrugResolution:
     endpoint (handles typos).  When no match is found the result has
     ``resolved=False`` and ``match_quality="failed"``.
 
-    Parameters
-    ----------
-    name : str
-        Drug name (e.g. ``"metformin"``, ``"Lisinopril 5 MG Oral Tablet"``).
-
-    Returns
-    -------
-    DrugResolution
+    When a transport error occurs at *any* stage, ``network_error=True``
+    is set on the result so the caller can distinguish "not found" from
+    "API unavailable."
     """
     if not name:
         return DrugResolution(input_name=name, resolved=False, match_quality="failed")
 
-    # Try exact lookup first
     rxcui = _lookup_name(name)
 
     quality = "exact"
+    net_err = False
+    if rxcui is _NETWORK_ERROR:
+        net_err = True
+        rxcui = None
     if rxcui is None:
-        # Fallback: approximate match (handles typos / minor misspellings)
         rxcui = _approximate_match(name)
+        if rxcui is _NETWORK_ERROR:
+            net_err = True
+            rxcui = None
         quality = "approximate"
 
     if rxcui is None:
-        return DrugResolution(input_name=name, resolved=False, match_quality="failed")
+        return DrugResolution(input_name=name, resolved=False, match_quality="failed", network_error=net_err)
 
-    # Fetch extra properties (ATC codes, canonical name)
     props = _fetch_properties(rxcui)
-    atc_codes = [p.get("propValue", "") for p in props if p.get("propName") == "ATC"]
-    display_name = (
-        next(
+    if props is _NETWORK_ERROR:
+        net_err = True
+        props = []
+
+    atc_codes = [
+        v for v in (p.get("propValue", "") for p in props if p.get("propName") == "ATC")
+        if v.strip()
+    ]
+
+    # Pick the NAME entry (not a synonym or tall-man form).
+    display_name = next(
+        (p.get("propValue", "") for p in props if p.get("propName") == "NAME"),
+        None,
+    )
+    if not display_name:
+        display_name = next(
             (p.get("propValue", "") for p in props if p.get("propCategory") == "NAMES"),
             None,
         )
-        or name
-    )
+    if not display_name:
+        display_name = name
 
-    # Fetch ingredient RxCUI (for downstream DDInter bridging)
     ingredient_rxcui = _fetch_ingredient(rxcui)
+    if ingredient_rxcui is _NETWORK_ERROR:
+        net_err = True
+        ingredient_rxcui = None
 
     return DrugResolution(
         input_name=name,
@@ -223,6 +247,7 @@ def resolve_drug(name: str) -> DrugResolution:
         atc_codes=atc_codes,
         resolved=True,
         match_quality=quality,
+        network_error=net_err,
     )
 
 
@@ -230,17 +255,11 @@ def resolve_drugs(names: list[str]) -> DrugResolutionReport:
     """Resolve multiple drug names and produce a report.
 
     When fewer than half of the names resolve successfully the report
-    carries a ``low_confidence_note`` (handled automatically by
-    ``DrugResolutionReport.__post_init__``).
-
-    Parameters
-    ----------
-    names : list[str]
-        One or more drug names.
-
-    Returns
-    -------
-    DrugResolutionReport
+    carries a ``low_confidence_note``.  If any resolution experienced
+    a network error the report's ``network_error`` is ``True``.
     """
     resolutions = [resolve_drug(n) for n in names]
-    return DrugResolutionReport(resolutions=resolutions)
+    return DrugResolutionReport(
+        resolutions=resolutions,
+        network_error=any(r.network_error for r in resolutions),
+    )
