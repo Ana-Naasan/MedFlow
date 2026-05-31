@@ -8,6 +8,7 @@ def create_app() -> FastAPI:
         title="Umraa API",
         version="0.1.0",
         description="Stage B scaffold for the polypharmacy decision packet.",
+        separate_input_output_schemas=False,
     )
     app.include_router(api_router)
     return app
