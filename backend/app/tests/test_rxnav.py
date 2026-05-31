@@ -586,3 +586,54 @@ class TestNetworkErrors:
         assert _client_instance is None
         close_client()
         assert _client_instance is None
+
+    def test_get_client_creates_and_caches(self) -> None:
+        """_get_client() initialises on first call, caches on second (lines 81-83)."""
+        import backend.app.knowledge.rxnav as rxnav_mod
+
+        assert rxnav_mod._client_instance is None
+
+        mock_client = MagicMock()
+        with patch("backend.app.knowledge.rxnav.httpx.Client", return_value=mock_client):
+            client = rxnav_mod._get_client()
+            assert client is mock_client
+            assert rxnav_mod._client_instance is mock_client
+            # Second call uses the cached instance
+            client2 = rxnav_mod._get_client()
+            assert client2 is mock_client
+
+        rxnav_mod.close_client()
+        assert rxnav_mod._client_instance is None
+        mock_client.close.assert_called_once()
+
+    def test_no_matching_ingredient_group(self) -> None:
+        """When no conceptGroup has tty=IN, ingredient_rxcui is None (line 165)."""
+        responses = [
+            _mock_json_response({"idGroup": {"rxnormId": ["6809"]}}),
+            _mock_json_response(_METFORMIN_PROPS),
+            _mock_json_response(
+                {
+                    "relatedGroup": {
+                        "rxcui": None,
+                        "conceptGroup": [
+                            {
+                                "tty": "BN",
+                                "conceptProperties": [{"rxcui": "xxx"}],
+                            }
+                        ],
+                    }
+                }
+            ),
+        ]
+        mock_get = MagicMock(side_effect=responses)
+        mock_client = MagicMock()
+        mock_client.get = mock_get
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
+
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
+            result = resolve_drug("metformin")
+
+        assert result.resolved is True
+        assert result.rxcui == "6809"
+        assert result.ingredient_rxcui is None
