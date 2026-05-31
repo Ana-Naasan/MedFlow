@@ -1,216 +1,250 @@
 ================================================================================
-FEEDBACK — Reasoning Core Alignment Report
+FEEDBACK (THIRD REVIEW) — Edge-Case & Spec-Verification Audit
 ================================================================================
 Task: reasoning/core.py + prompts.py — Gemini-call, structured JSON, citation
       verification, golden-path test
 Branch: feat/reasoning-core (vs remotes/origin/planning)
-Files changed:
-  + backend/app/reasoning/core.py              (230 lines)
-  + backend/app/reasoning/prompts.py            (91 lines)
-  + backend/app/tests/test_reasoning_core.py   (492 lines)
-  + backend/app/tests/test_reasoning_prompts.py (153 lines)
-  + backend/app/tests/test_reasoning_config.py  (15 lines)
-  + backend/requirements.txt                    (+1 line: google-genai==2.7.0)
+Review date: 2026-05-31 (third pass — edge-case deep dive)
+
+FILES AUDITED
+  backend/app/reasoning/core.py              (273 lines)
+  backend/app/reasoning/prompts.py            (94 lines)
+  backend/app/dtos.py                         (14 lines)
+  backend/app/tests/test_reasoning_core.py   (590 lines)
+  backend/app/tests/test_reasoning_prompts.py (158 lines)
+  backend/app/tests/test_reasoning_integration.py (257 lines)
+
+CROSS-REFERENCED SPECS
+  - PRD §1 (invariants): "No resolvable citation → not shown."
+  - PRD §11 (reasoning pipeline): "Structured JSON output citing tags + IDs."
+  - PRD §13 (anti-hallucination): "Mandatory citation schema — can't return
+    a hypothesis without [citations]."
+  - REASON-01: "returns structured JSON hypotheses citing [ResourceType/id]
+    tags + evidence-card ids."
+  - REASON-02: "Deterministic verifier drops any hypothesis whose patient or
+    knowledge citations don't resolve."
+  - REASON-08: "Abstention — when zero hypotheses survive verification,
+    return 'no well-supported explanation found,' never invent."
+  - Task prompt: "each suggestion must cite its sources."
 ================================================================================
 
-1.  SCOPE MATCH
+FULL PIPELINE EDGE-CASE AUDIT
 ================================================================================
 
-    Task requirement                                          Status
-    ───────────────────────────────────────────────────────  ────────
-    reasoning/core.py + prompts.py exist                     ✅ PASS
-    Flattened text + evidence assembled into one prompt      ✅ PASS
-    Single Gemini call with structured JSON output           ✅ PASS
-    Citations: patient ([Type/id]) + evidence IDs            ✅ PASS
-    Confidence level + severity per suggestion               ✅ PASS
-    Model told to only reference present facts               ✅ PASS
-    Response parsed into Hypothesis shapes                   ✅ PASS
-    Golden demo-patient test with mocked AI response         ✅ PASS
-    Coverage (comprehensive tests)                           ✅ PASS
+Legend: ✅ = handled correctly | ❌ = bug found | ⚠️ = minor concern
 
-    VERDICT: All required deliverables present.
-    The implementation matches the task scope precisely.
-    No scope creep detected.  No obvious missing pieces.
+A. INPUT-LEVEL EDGES (run_reasoning arguments)
+────────────────────────────────────────────────────────────────────────────────
 
-2.  IMPLEMENTATION CORRECTNESS
+  A1. flattened_text = ""  (empty patient text)
+       → prompt built with empty patient section
+       → Gemini may hallucinate or return []
+       → verify_citations: patient_tags = set(), any resource ref fails → dropped
+       ✅ Correct (no crash, no false positives)
+
+  A2. evidence = []  (no evidence cards)
+       → prompt shows "no evidence cards available"
+       → Gemini instructed to not cite evidence
+       → verify_citations: evidence_ids = set(), any evidence ref fails → dropped
+       ✅ Correct
+
+  A3. Both "" and []
+       → Same as A1 + A2
+       ✅ Correct
+
+B. GEMINI RESPONSE-LEVEL EDGES (parse_gemini_response input)
+────────────────────────────────────────────────────────────────────────────────
+
+  B1. response.text = None  (blocked/censored response)
+       → parse_gemini_response(None)
+       → "if not response_text or not response_text.strip():"
+       → not None is True → raises ValueError → caught in run_reasoning → []
+       ✅ Correct
+
+  B2. response.text = ""  (empty string)
+       → Same as B1
+       ✅ Correct (tested: test_empty_response_raises)
+
+  B3. response.text = "   "  (whitespace only)
+       → Same as B1
+       ✅ Correct (tested: test_whitespace_only_raises)
+
+  B4. response.text = "{broken json}"  (malformed)
+       → JSONDecodeError → ValueError → caught → []
+       ✅ Correct (tested: test_malformed_json_raises)
+
+  B5. response.text = '"just a string"'  (non-object top level)
+       → isinstance check → ValueError → caught → []
+       ✅ Correct (tested: test_non_dict_top_level_raises)
+
+  B6. top-level key "hypotheses" = null
+       → data.get("hypotheses", []) returns None
+       → isinstance check → ValueError → caught → []
+       ✅ Correct (tested: test_hypotheses_not_a_list_raises)
+
+  B7. top-level key "hypotheses" = "not-a-list" (string)
+       → Same as B6
+       ✅ Correct (tested: test_hypotheses_not_a_list_raises)
+
+  B8. hypothesis entry in list is a string instead of dict
+       → isinstance(raw, dict) check → skipped
+       ✅ Correct (tested: test_non_dict_hypothesis_skipped)
+
+  B9. hypothesis entry with citations = null  ################################
+       → raw.get("citations", []) returns None (JSON null is a value, so
+         .get() returns it instead of the default [])
+       → for c in None → TypeError: 'NoneType' object is not iterable
+       → TypeError is NOT caught by except ValueError in run_reasoning
+       ❌ CRASH: TypeError propagates as 500 to /packet endpoint
+
+  B10. hypothesis entry with citations = "string" (non-list)
+       → raw.get("citations", []) returns the string
+       → for c in "string" iterates characters
+       → isinstance("m", dict) = False → all filtered
+       → citations result = [] (empty, but no crash)
+       ⚠️ No crash, but leads directly to zero-citation problem (C3 below)
+
+  B11. hypothesis entry with no "citations" key at all
+       → raw.get("citations", []) returns []
+       → comprehension yields []
+       ✅ Correct (tested: test_missing_citations_field)
+
+  B12. citation entry is a string instead of dict
+       → isinstance(c, dict) → skipped
+       ✅ Correct (tested: test_non_dict_citation_skipped)
+
+  B13. citation entry with null ref / null kind
+       → c.get("ref", "") returns None → Citation(ref=None)
+       → Pydantic ValidationError → ValueError → caught → []
+       ✅ Correct (null string field fails validation)
+
+  B14. citation entry with empty ref / empty kind
+       → c.get("ref", "") returns ""
+       → Citation(ref="") — empty string is valid for Pydantic str
+       → verify_citations: "" not in tags → dropped
+       ✅ Correct
+
+  B15. title = null in a hypothesis
+       → raw.get("title", "") returns None
+       → Hypothesis(title=None) → Pydantic ValidationError
+       → ValueError → caught → []
+       ✅ Correct (Pydantic v2 ValidationError is a ValueError subclass)
+
+  B16. why = null in a hypothesis
+       → Same as B15
+       ✅ Correct
+
+C. VERIFIER EDGES (verify_citations)
+────────────────────────────────────────────────────────────────────────────────
+
+  C1. Hypothesis with valid citations that all resolve
+       → known_citations has entries, all pass checks
+       → hypothesis survives with known citations kept
+       ✅ Correct (tested: test_valid_hypothesis_survives)
+
+  C2. Hypothesis with one unresolvable patient-fact ref
+       → verification fails → hypothesis dropped
+       ✅ Correct (tested: test_drops_when_resource_ref_missing)
+
+  C3. Hypothesis with 0 citations (empty list)  ##############################
+       → known_citations = [] (filter passes through 0 items)
+       → valid = True (initial value, loop never runs)
+       → h.citations = [] (empty)
+       → SURVIVES verification
+       ❌ SPEC VIOLATION: PRD §1 and §13 say every claim MUST carry
+          a resolvable citation. A hypothesis with 0 citations cannot
+          be shown and should be dropped.
+
+  C4. Hypothesis with all-unknown citation kinds  #############################
+       → all filtered out by _KNOWN_CITATION_KINDS check
+       → known_citations = []
+       → valid = True (loop never runs)
+       → h.citations = [] (all stripped)
+       → SURVIVES verification
+       ❌ SAME GAP as C3. Should be dropped.
+
+  C5. Hypothesis with empty evidence_ids set
+       → evidence_card refs checked against empty set → all fail → dropped
+       ✅ Correct (tested: test_drops_when_evidence_ref_missing)
+
+  C6. Hypothesis with unknown citation kinds mixed with valid ones
+       → unknown kinds stripped, valid checks run on survivors
+       ✅ Correct (tested: test_unknown_citation_kind_dropped)
+
+  C7. Bracketed ref "[Condition/c1]" passed for resource kind
+       → _strip_brackets → "Condition/c1" matches tag
+       ✅ Correct (tested: test_ref_with_brackets_still_matches)
+
+  C8. Empty flattened_text passed to verify_citations
+       → patient_tags = set()
+       → any resource ref fails → hypothesis dropped
+       ✅ Correct
+
+  C9. No hypotheses (empty list) passed to verify_citations
+       → early return []
+       ✅ Correct (tested: test_empty_hypotheses)
+
+SUMMARY OF ISSUES
 ================================================================================
 
-    2a. Prompt design (prompts.py)
-    ────────────────────────────────────────────────────────────────────────
-    - SYSTEM_INSTRUCTION clearly states the rules (don't invent, cite your
-      sources, structured JSON only).
-    - Output format is a complete JSON schema including title, why, severity,
-      confidence, and citations with kind/ref/label.
-    - Evidence snippets are rendered as a numbered list with ID, kind, and
-      label (truncated at 200 chars).
-    - Patient clinical data and evidence cards are separated into clearly
-      labelled sections.
-    ✅ Good — clean, testable prompt structure.
+CRITICAL BUG #1: citations=null → TypeError crash (not caught)
+  File:         backend/app/reasoning/core.py, line ~115
+  Root cause:   raw.get("citations", []) returns None when JSON value is null;
+                iterating None raises TypeError.
+  Why it's bad: The TypeError is NOT caught by the except ValueError in
+                run_reasoning (line ~262). It propagates as a 500 error to the
+                /packet endpoint — the demo path. The previous PR's openFDA
+                code had a similar "+AND+" encoding bug masked by test fixtures;
+                this is the same class of latent crash.
+  Proof:        >>> json.loads('{"citations": null}').get("citations", [])
+                None  # not []
+  Fix options:
+    Option A: Change comprehension to
+                 for c in (raw.get("citations") or [])
+              The "or" coalesces None → [].
+    Option B: Guard before comprehension:
+                 raw_citations = raw.get("citations", [])
+                 if not isinstance(raw_citations, list):
+                     raw_citations = []
+    Option C: Add except (ValueError, TypeError) to the run_reasoning try.
+  RECOMMENDATION: Option A (one-line change, most defensive).
 
-    2b. Gemini API call (core.py)
-    ────────────────────────────────────────────────────────────────────────
-    - Uses google-genai async client (`client.aio.models.generate_content`).
-    - response_mime_type="application/json" enforces structured output.
-    - temperature=0.0 for deterministic results.
-    - API key read from GOOGLE_GENAI_API_KEY env var at call time.
-    ✅ Good.
+CRITICAL BUG #2: Zero-citation hypothesis survives verification (spec violation)
+  File:         backend/app/reasoning/core.py, verify_citations ~line 196
+  Root cause:   After filtering to known_citations, the loop runs zero times,
+                valid stays True, and the hypothesis with 0 citations is kept.
+  Why it's bad: PRD §1 states "No resolvable citation → not shown." A hypothesis
+                with 0 citations has no evidence and should never reach the UI.
+                The task prompt says "each suggestion must cite its sources."
+  Fix:          Change line:
+                  if valid:
+                to:
+                  if valid and known_citations:
+  RECOMMENDATION: Fix this. It's two characters.
 
-    ⚠️  No error handling for Gemini API failures:
-       If the API is unreachable, the key is invalid, or rate limits are hit,
-       the exception propagates uncaught.  The PRD (REASON-08) expects
-       abstention ("no well-supported explanation found") when nothing can
-       be produced — not a crash.
-       RECOMMENDATION: Wrap the API call in try/except and return [] on
-       transient failures.
+CRITICAL GAP #3: No test for citations=null or zero-citation cases
+  The test suite covers happy-path, ValueError cases, and dropped-citation
+  cases, but DOES NOT test:
+    - citations=null in a hypothesis (this would catch bug #1)
+    - zero-citation hypothesis surviving verification (this would catch bug #2)
+    - citations="malicious_string" (non-list edge case)
+  RECOMMENDATION: Add tests for these three cases.
 
-    2c. Response parser (core.py)
-    ────────────────────────────────────────────────────────────────────────
-    - Handles empty/whitespace responses → ValueError.
-    - Handles malformed JSON → ValueError.
-    - Handles non-dict top-level → ValueError.
-    - Handles non-list hypotheses → ValueError.
-    - Non-dict entries in the hypotheses list are silently skipped.
-    - Non-dict citations in a citation list are silently skipped.
-    - Missing fields get sensible defaults (severity="moderate",
-      confidence="low", citations=[]).
-    - Hypothesis IDs are generated as hyp-1, hyp-2, etc.
-    ✅ Thorough input validation.
+MINOR #4: Dead code
+  - _BARE_TAG_RE defined but never used (core.py line ~33)
+  - import importlib unused (test_reasoning_config.py line 3)
 
-    2d. Citation verifier (core.py — REASON-02)
-    ────────────────────────────────────────────────────────────────────────
-    - Patient-fact citations checked against tags in the flattened text.
-    - Evidence-card citations checked against known snippet IDs.
-    - If ANY citation in a hypothesis fails, the entire hypothesis is dropped.
-    - Unknown citation kinds are left as-is (not verified, not dropped).
-    ✅ Structural anti-hallucination is implemented.
-
-    ⚠️  The verifier checks against the *flattened text* rather than the
-       *cache* directly.  The PRD §13 says "every patient_evidence id must
-       exist in cache."  Checking the text is a reasonable approximation
-       (the text is built from the cache), but it means a tag that appears
-       in the text due to a rendering bug would pass verification.
-       For Phase 2 this is acceptable, but note for future tightening.
-
-3.  ARCHITECTURE ALIGNMENT
+REGENERATION RECOMMENDATIONS
 ================================================================================
 
-    3a. Citation kind naming
-    ────────────────────────────────────────────────────────────────────────
-    The existing codebase uses citation kinds:
-      - cache/store.py: kind="resource", kind="evidence"
-      - PRD §14:       kind="patient"|"openFDA"|"DDInter"|"Beers"|"ACB"
-
-    The new reasoning code uses:
-      - kind="patient_fact"   (instead of "resource" or "patient")
-      - kind="evidence_card"  (instead of "evidence" or "openFDA"/etc.)
-
-    ❌ MISALIGNMENT: When the reasoning output flows into the existing
-       DecisionPacket DTO and is consumed by the frontend, the kind field
-       will not match what the frontend expects.  The frontend citation
-       rendering (FE-01/02) may check for specific kind strings.
-
-       RECOMMENDATION: Either:
-       (a) Align the reasoning output to use the existing conventions
-           ("resource" for patient facts, keeping evidence source-specific
-           kinds like "openfda_adverse_event"), OR
-       (b) Update the Citation DTO documentation and the frontend to accept
-           the new kind vocabulary — but this is a wider change.
-
-    3b. Citation ref format (brackets)
-    ────────────────────────────────────────────────────────────────────────
-    The new code stores patient-fact refs WITH brackets:
-      ref="[MedicationStatement/ms-001]"
-
-    The existing store.py uses refs WITHOUT brackets:
-      ref="Patient/pat-001"
-
-    The verifier tags are extracted WITH brackets from the flattened text,
-    so the internal consistency is fine.  But when these refs are served to
-    the API consumer (e.g. the citation-resolution endpoint), the consumer
-    receives "[MedicationStatement/ms-001]" — with brackets — while the
-    existing convention sends "Patient/pat-001" — without brackets.
-
-    ⚠️  MISALIGNMENT: Consumers calling /patients/{id}/resource/{rtype}/{fhir_id}
-       receive the resource type and fhir_id from URL params, not the ref string,
-       so the functional impact is low.  But mixed conventions will confuse
-       frontend developers and break any consumer that parses the ref field.
-
-       RECOMMENDATION: Strip the square brackets from patient-fact refs, or
-       explicitly document the ref format in the Citation DTO.
-
-    3c. Integration with /packet endpoint
-    ────────────────────────────────────────────────────────────────────────
-    The reasoning core is NOT wired into the api/packet.py endpoint or the
-    cache.  This is expected for a Phase-2 unit-level task — the end-to-end
-    wiring will happen when the reasoning core, cache, and API are connected.
-    Not flagged as a deviation.
-
-    3d. Dependencies / requirements.txt
-    ────────────────────────────────────────────────────────────────────────
-    google-genai==2.7.0 added.  ✅ Clean.
-
-4.  POTENTIAL ISSUES
-================================================================================
-
-    4a. Error resilience
-    ────────────────────────────────────────────────────────────────────────
-    See 2b above — no try/except around the Gemini API call.  If the
-    API call fails, the entire /packet endpoint would return 500 instead
-    of gracefully degrading.  REASON-08 requires abstention.
-
-    4b. Kind-specific verifier gap
-    ────────────────────────────────────────────────────────────────────────
-    The verifier only checks citations with kind="patient_fact" or
-    kind="evidence_card".  Any citation with an unrecognised kind (e.g.
-    a hallucinated kind the model invents) passes verification silently.
-    Since the prompt controls what kinds the model uses, this is low-risk,
-    but a strict verifier should drop any citation whose kind is not
-    in a known set.
-
-    4c. EvidenceSnippet coupling
-    ────────────────────────────────────────────────────────────────────────
-    The run_reasoning() signature takes Sequence[EvidenceSnippet] from
-    backend.app.knowledge.openfda.  The PRD envisions multiple knowledge
-    sources (DDInter, Beers, ACB) each producing their own evidence format.
-    A more flexible type (e.g. a Protocol or dataclass union) would allow
-    other knowledge sources to feed the reasoning core without modifying it.
-    Acceptable for Phase 2 scope (openFDA only).
-
-5.  PROMPT ADHERENCE — REQUIREMENT-BY-REQUIREMENT
-================================================================================
-
-    Requirement                                          Status  Notes
-    ───────────────────────────────────────────────────  ──────  ──────────────
-    core.py + prompts.py present                         ✅
-    Flattened text + evidence → one prompt               ✅
-    Single Gemini call                                   ✅
-    Structured answer (JSON)                             ✅
-    Patient citations [Type/id]                          ✅
-    Evidence citations                                   ✅
-    Confidence level + severity                          ✅
-    Model told to only reference present facts           ✅
-    Parsed into Hypothesis shapes                        ✅
-    Golden demo-patient test with mocked AI              ✅
-    Coverage (tests are comprehensive)                   ✅
-
-6.  CONFIDENCE LEVEL
-================================================================================
-
-    The implementation is well-structured, thoroughly tested (660 lines of
-    tests against 321 lines of production code), and covers all requirements
-    in the task prompt.
-
-    Issues are MINOR:
-      - Citation kind naming mismatch with existing conventions
-      - Citation ref bracket format mismatch with existing conventions
-      - Missing API error resilience (abstention)
-      - Verifier is text-based rather than cache-based (acceptable for P2)
-      - No integration wiring to /packet (expected for this scope)
-
-    Overall confidence: HIGH — the code does what the task asked.
-    Fix the two naming mismatches before merging to main to avoid
-    downstream confusion in the frontend.
+Before merging to main, fix in order:
+  1. Fix citations=null crash in parse_gemini_response
+     (one-line change: "raw.get('citations', [])" → "raw.get('citations') or []")
+  2. Fix zero-citation leak in verify_citations
+     (two-character change: "if valid:" → "if valid and known_citations:")
+  3. Add tests for the three missing edge cases
+  4. Remove dead code (minor)
 
 ================================================================================
-END FEEDBACK
+END FEEDBACK (THIRD REVIEW)
 ================================================================================

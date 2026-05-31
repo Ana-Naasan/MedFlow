@@ -9,7 +9,6 @@ from collections.abc import Sequence
 
 from backend.app.knowledge.openfda import EvidenceSnippet
 
-
 SYSTEM_INSTRUCTION = (
     "You are a clinical reasoning assistant. "
     "Analyse the patient's clinical data and evidence cards below, "

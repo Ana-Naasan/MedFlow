@@ -7,7 +7,6 @@ from backend.app.reasoning.prompts import (
     build_reasoning_prompt,
 )
 
-
 # ── _format_evidence tests ─────────────────────────────────────────────────
 
 

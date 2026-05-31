@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.app.dtos import Hypothesis
 from backend.app.fhir.flatten import flatten_to_tagged_text
 from backend.app.knowledge.openfda import EvidenceSnippet
 from backend.app.reasoning.core import run_reasoning
