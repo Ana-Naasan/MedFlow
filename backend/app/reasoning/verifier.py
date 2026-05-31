@@ -101,6 +101,7 @@ def verify_packet(
             summary_markdown=ABSTAIN_MESSAGE,
             hypotheses=[],
             data_gaps=list(packet.data_gaps),
+            completeness=list(packet.completeness),
             cache_status=packet.cache_status,
         )
 
@@ -109,6 +110,7 @@ def verify_packet(
         summary_markdown=packet.summary_markdown,
         hypotheses=kept,
         data_gaps=list(packet.data_gaps),
+        completeness=list(packet.completeness),
         cache_status=packet.cache_status,
     )
 
