@@ -1,0 +1,256 @@
+{
+  "source": "American Geriatrics Society 2023 Beers Criteria for Potentially Inappropriate Medication Use in Older Adults",
+  "citation": "2023 American Geriatrics Society Beers Criteria Update Expert Panel. American Geriatrics Society 2023 updated AGS Beers Criteria for Potentially Inappropriate Medication Use in Older Adults. J Am Geriatr Soc. 2023;71(7):2052-2081. https://doi.org/10.1111/jgs.18372",
+  "retrieved": "2026-05-30",
+  "notes": "Use in adults ≥65 years. 'Avoid' = do not use unless no safer alternative. 'Use with caution' = monitor closely. This is a representative subset; see full 2023 criteria for complete list.",
+  "rules": [
+    {
+      "id": "beers-2023-anticholinergic-01",
+      "category": "Anticholinergics — First-generation antihistamines",
+      "drugs": [
+        "brompheniramine", "carbinoxamine", "chlorpheniramine", "clemastine",
+        "cyproheptadine", "dexbrompheniramine", "dexchlorpheniramine",
+        "diphenhydramine (oral)", "doxylamine", "hydroxyzine",
+        "meclizine", "promethazine", "triprolidine"
+      ],
+      "rationale": "Highly anticholinergic; increased risk of confusion, dry mouth, constipation, and other anticholinergic effects/toxicity. Diphenhydramine: increased risk of confusion, urinary retention, and impaired driving.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-anticholinergic-02",
+      "category": "Anticholinergics — Anti-Parkinson agents",
+      "drugs": ["benztropine (oral)", "trihexyphenidyl"],
+      "rationale": "Not recommended for prevention of extrapyramidal symptoms with antipsychotics; more effective agents available for treatment of Parkinson disease.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-anticholinergic-03",
+      "category": "Anticholinergics — Antispasmodics",
+      "drugs": [
+        "belladonna alkaloids", "clidinium-chlordiazepoxide", "dicyclomine",
+        "hyoscyamine", "propantheline", "scopolamine"
+      ],
+      "rationale": "Highly anticholinergic, uncertain effectiveness.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-anticholinergic-04",
+      "category": "Anticholinergics — Antidepressants",
+      "drugs": ["amitriptyline", "clomipramine", "doxepin (>6 mg/day)", "imipramine", "trimipramine"],
+      "rationale": "Highly anticholinergic; sedating; orthostatic hypotension.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "High",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-anticholinergic-05",
+      "category": "Anticholinergics — Urinary incontinence drugs",
+      "drugs": [
+        "darifenacin", "fesoterodine", "flavoxate", "oxybutynin",
+        "solifenacin", "tolterodine", "trospium"
+      ],
+      "rationale": "Highly anticholinergic; uncertain effectiveness in those with dementia. Oxybutynin: lower risk with transdermal formulation.",
+      "recommendation": "Avoid in older adults with or at high risk for delirium, dementia, or cognitive impairment",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cvs-01",
+      "category": "Cardiovascular — Alpha-1 blockers",
+      "drugs": ["doxazosin", "prazosin", "terazosin"],
+      "rationale": "High risk of orthostatic hypotension and associated harms; not recommended as routine treatment for hypertension.",
+      "recommendation": "Avoid use as antihypertensive",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cvs-02",
+      "category": "Cardiovascular — Central alpha-agonists",
+      "drugs": ["clonidine", "guanabenz", "guanfacine", "methyldopa", "reserpine (>0.1 mg/day)"],
+      "rationale": "High risk of adverse CNS effects; may cause bradycardia and orthostatic hypotension; not recommended as routine treatment for hypertension.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Low",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cvs-03",
+      "category": "Cardiovascular — Digoxin for first-line atrial fibrillation or heart failure",
+      "drugs": ["digoxin"],
+      "rationale": "Should not be used as a first-line agent for atrial fibrillation or heart failure. Decreased renal clearance may increase risk of toxicity.",
+      "recommendation": "Avoid as first-line therapy for AF or HF; if used, keep serum level <0.8 ng/mL",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cvs-04",
+      "category": "Cardiovascular — Nifedipine (immediate release)",
+      "drugs": ["nifedipine (immediate release)"],
+      "rationale": "Potential for hypotension; risk of precipitating myocardial ischemia.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "High",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cvs-05",
+      "category": "Cardiovascular — Amiodarone",
+      "drugs": ["amiodarone"],
+      "rationale": "Effective for maintaining sinus rhythm but has greater toxicities than other antiarrhythmics used in atrial fibrillation; may be reasonable first-line therapy when rate control cannot be achieved.",
+      "recommendation": "Avoid as first-line therapy for atrial fibrillation unless patient has HF or substantial LVH",
+      "quality_of_evidence": "High",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cns-01",
+      "category": "CNS — Antipsychotics",
+      "drugs": [
+        "aripiprazole", "asenapine", "brexpiprazole", "cariprazine", "chlorpromazine",
+        "clozapine", "fluphenazine", "haloperidol", "iloperidone", "loxapine",
+        "lurasidone", "molindone", "olanzapine", "paliperidone", "perphenazine",
+        "pimavanserin", "pimozide", "quetiapine", "risperidone", "thioridazine",
+        "thiothixene", "trifluoperazine", "ziprasidone"
+      ],
+      "rationale": "Increased risk of stroke and mortality in persons with dementia. Avoid antipsychotics for behavioral problems of dementia or delirium unless nonpharmacological options have failed and patient is a threat to themselves or others.",
+      "recommendation": "Avoid for behavioral problems of dementia or delirium unless safer alternatives have failed or are not possible; avoid antipsychotics in patients with Parkinson disease or Lewy body dementia",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cns-02",
+      "category": "CNS — Benzodiazepines (any type)",
+      "drugs": [
+        "alprazolam", "chlordiazepoxide", "clobazam", "clonazepam", "clorazepate",
+        "diazepam", "estazolam", "flurazepam", "lorazepam", "midazolam",
+        "oxazepam", "quazepam", "temazepam", "triazolam"
+      ],
+      "rationale": "Older adults have increased sensitivity to benzodiazepines and slower metabolism; increased risk of cognitive impairment, delirium, falls, fractures, and motor vehicle accidents.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-cns-03",
+      "category": "CNS — Non-benzodiazepine, benzodiazepine receptor agonist hypnotics (Z-drugs)",
+      "drugs": ["eszopiclone", "zaleplon", "zolpidem"],
+      "rationale": "Adverse events similar to benzodiazepines in older adults (e.g., delirium, falls, fractures); increased emergency department visits/hospitalizations; motor vehicle accidents; may be more effective in the short-term than benzodiazepines.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-endo-01",
+      "category": "Endocrine — Androgens",
+      "drugs": ["methyltestosterone", "testosterone"],
+      "rationale": "Potential for cardiac problems and contraindicated in men with prostate cancer.",
+      "recommendation": "Avoid unless indicated for confirmed hypogonadism with clinical symptoms",
+      "quality_of_evidence": "Moderate",
+      "strength": "Weak"
+    },
+    {
+      "id": "beers-2023-endo-02",
+      "category": "Endocrine — Sulfonylureas (long-duration)",
+      "drugs": ["chlorpropamide", "glimepiride", "glyburide"],
+      "rationale": "Chlorpropamide: prolonged half-life; can cause prolonged hypoglycemia; causes SIADH. Glyburide/glimepiride: higher risk of severe prolonged hypoglycemia in older adults.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "High",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-gi-01",
+      "category": "Gastrointestinal — Metoclopramide",
+      "drugs": ["metoclopramide"],
+      "rationale": "Can cause drug-induced parkinsonism, tardive dyskinesia, extrapyramidal effects.",
+      "recommendation": "Avoid unless for gastroparesis with duration of use not to exceed 12 weeks except in rare cases",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-gi-02",
+      "category": "Gastrointestinal — Proton pump inhibitors",
+      "drugs": ["dexlansoprazole", "esomeprazole", "lansoprazole", "omeprazole", "pantoprazole", "rabeprazole"],
+      "rationale": "Risk of Clostridioides difficile infection and bone loss/fractures with long-term use.",
+      "recommendation": "Avoid scheduled use for >8 weeks unless for high-risk patients (e.g., oral corticosteroids or chronic NSAID use), erosive esophagitis, Barrett esophagitis, hypersecretory condition",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-pain-01",
+      "category": "Pain — NSAIDs (non-COX-selective and COX-2 selective)",
+      "drugs": [
+        "aspirin (>325 mg/day)", "celecoxib", "diclofenac", "diflunisal", "etodolac",
+        "fenoprofen", "ibuprofen", "indomethacin", "ketoprofen", "ketorolac (oral/parenteral)",
+        "mefenamic acid", "meloxicam", "nabumetone", "naproxen", "oxaprozin",
+        "piroxicam", "sulindac", "tolmetin"
+      ],
+      "rationale": "Increases risk of GI bleeding/peptic ulcer disease, acute kidney injury, and fluid retention. Upper GI ulcers, gross bleeding, or perforation in 1% of patients treated for 3-6 months, and in 2%-4% of patients treated for 1 year. Use with caution if PPI or misoprostol is prescribed.",
+      "recommendation": "Avoid chronic use unless alternatives are not effective and patient can take a PPI or misoprostol",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-pain-02",
+      "category": "Pain — Skeletal muscle relaxants",
+      "drugs": [
+        "carisoprodol", "chlorzoxazone", "cyclobenzaprine", "metaxalone",
+        "methocarbamol", "orphenadrine"
+      ],
+      "rationale": "Most muscle relaxants are poorly tolerated by older adults because of anticholinergic adverse effects, sedation, increased risk of fractures; effectiveness at doses tolerated by older adults is questionable.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-pain-03",
+      "category": "Pain — Meperidine",
+      "drugs": ["meperidine"],
+      "rationale": "Oral analgesic not effective in doses commonly used; may cause neurotoxicity (seizures); safer alternatives available.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "High",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-sleep-01",
+      "category": "Sleep — Antihistamines and diphenhydramine",
+      "drugs": ["diphenhydramine (oral)", "doxylamine"],
+      "rationale": "Anticholinergic effects; increased risk of confusion and psychomotor impairment.",
+      "recommendation": "Avoid for insomnia",
+      "quality_of_evidence": "Low",
+      "strength": "Strong"
+    },
+    {
+      "id": "beers-2023-interaction-01",
+      "category": "Drug-drug interactions — Warfarin + NSAIDs or aspirin (>325 mg/day)",
+      "drugs": ["warfarin", "aspirin (>325 mg/day)", "ibuprofen", "naproxen", "diclofenac"],
+      "rationale": "Increases risk of bleeding.",
+      "recommendation": "Avoid combination; if NSAID necessary, use PPI",
+      "quality_of_evidence": "High",
+      "strength": "Strong",
+      "interaction_type": "drug-drug"
+    },
+    {
+      "id": "beers-2023-interaction-02",
+      "category": "Drug-drug interactions — 3 or more CNS-active drugs",
+      "drugs": ["antidepressants", "antiepileptics", "antipsychotics", "benzodiazepines", "opioids", "muscle relaxants"],
+      "rationale": "Increased risk of falls and fractures.",
+      "recommendation": "Avoid concurrent use of 3 or more CNS-active drugs",
+      "quality_of_evidence": "High",
+      "strength": "Strong",
+      "interaction_type": "drug-drug"
+    },
+    {
+      "id": "beers-2023-interaction-03",
+      "category": "Drug-drug interactions — Anticholinergics + acetylcholinesterase inhibitors",
+      "drugs": ["donepezil", "galantamine", "rivastigmine"],
+      "rationale": "Anticholinergic properties antagonize effectiveness of acetylcholinesterase inhibitors.",
+      "recommendation": "Avoid",
+      "quality_of_evidence": "Moderate",
+      "strength": "Strong",
+      "interaction_type": "drug-drug"
+    }
+  ]
+}
