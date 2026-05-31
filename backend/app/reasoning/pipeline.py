@@ -16,8 +16,10 @@ citation-safe packet.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 
+from backend.app.config import REASONING_TIMEOUT_SECONDS
 from backend.app.dtos import DecisionPacket
 from backend.app.fhir.flatten import flatten_to_tagged_text
 from backend.app.knowledge.openfda import EvidenceSnippet
@@ -79,14 +81,18 @@ async def build_reasoned_packet(
         )
 
     try:
-        hypotheses = await run_reasoning(flattened, evidence, model=model)
+        async with asyncio.timeout(REASONING_TIMEOUT_SECONDS):
+            hypotheses = await run_reasoning(flattened, evidence, model=model)
     except Exception:
         # REASON-08 / always-servable guarantee: ANY reasoning failure abstains to
         # the citation-safe scaffold rather than 500-ing. run_reasoning builds the
         # client + prompt OUTSIDE its own try/except (a missing GOOGLE_GENAI_API_KEY
         # raises KeyError; the SDK can raise TimeoutError / ValueError /
-        # ValidationError), so the guard here must be broad. The scaffold path is
-        # still citation-gated below, so abstaining never weakens the safety bar.
+        # ValidationError), so the guard here must be broad. The asyncio.timeout
+        # above bounds the call (#90): a slow/hung Gemini call inside /packet's
+        # request path raises TimeoutError here instead of blocking until the page
+        # gives up. The scaffold path is still citation-gated below, so abstaining
+        # never weakens the safety bar.
         hypotheses = []
 
     if not hypotheses:
