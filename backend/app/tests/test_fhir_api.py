@@ -41,10 +41,7 @@ class TestValidation:
             clinicalStatus={
                 "coding": [
                     {
-                        "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/condition-clinical"
-                        ),
+                        "system": ("http://terminology.hl7.org/CodeSystem" "/condition-clinical"),
                         "code": "active",
                     }
                 ]
@@ -52,10 +49,7 @@ class TestValidation:
             verificationStatus={
                 "coding": [
                     {
-                        "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/condition-ver-status"
-                        ),
+                        "system": ("http://terminology.hl7.org/CodeSystem" "/condition-ver-status"),
                         "code": "confirmed",
                     }
                 ]
@@ -93,9 +87,7 @@ class TestValidation:
             medicationCodeableConcept={
                 "coding": [
                     {
-                        "system": (
-                            "http://www.nlm.nih.gov/research/umls/rxnorm"
-                        ),
+                        "system": ("http://www.nlm.nih.gov/research/umls/rxnorm"),
                         "code": "312961",
                         "display": "Lisinopril 10 MG",
                     }
@@ -112,8 +104,7 @@ class TestValidation:
                 "coding": [
                     {
                         "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/allergyintolerance-clinical"
+                            "http://terminology.hl7.org/CodeSystem" "/allergyintolerance-clinical"
                         ),
                         "code": "active",
                     }
@@ -171,10 +162,7 @@ class TestReference:
             clinicalStatus={
                 "coding": [
                     {
-                        "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/condition-clinical"
-                        ),
+                        "system": ("http://terminology.hl7.org/CodeSystem" "/condition-clinical"),
                         "code": "active",
                     }
                 ]
@@ -182,10 +170,7 @@ class TestReference:
             verificationStatus={
                 "coding": [
                     {
-                        "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/condition-ver-status"
-                        ),
+                        "system": ("http://terminology.hl7.org/CodeSystem" "/condition-ver-status"),
                         "code": "confirmed",
                     }
                 ]
@@ -210,10 +195,7 @@ class TestReference:
             clinicalStatus={
                 "coding": [
                     {
-                        "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/condition-clinical"
-                        ),
+                        "system": ("http://terminology.hl7.org/CodeSystem" "/condition-clinical"),
                         "code": "active",
                     }
                 ]
@@ -221,10 +203,7 @@ class TestReference:
             verificationStatus={
                 "coding": [
                     {
-                        "system": (
-                            "http://terminology.hl7.org/CodeSystem"
-                            "/condition-ver-status"
-                        ),
+                        "system": ("http://terminology.hl7.org/CodeSystem" "/condition-ver-status"),
                         "code": "confirmed",
                     }
                 ]
