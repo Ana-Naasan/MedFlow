@@ -36,6 +36,8 @@ from typing import Any
 
 import httpx
 
+from backend.app.dtos import EvidenceSnippet  # re-exported for backward-compat imports
+
 BASE_URL = "https://api.fda.gov/drug"
 
 _RATE_LIMIT_RATE = 200  # tokens per minute (below the 240 cap)
@@ -55,9 +57,6 @@ _SERIOUSNESS_FLAGS: dict[str, str] = {
 }
 
 # ── Data containers ────────────────────────────────────────────────────────
-
-
-from backend.app.dtos import EvidenceSnippet as EvidenceSnippet  # re-export; existing imports unchanged
 
 
 @dataclass
