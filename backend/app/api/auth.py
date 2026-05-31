@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from backend.app.config import MissingConfigurationError, load_config
+from backend.app.config import MissingConfigurationError, load_dev_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -21,7 +21,7 @@ def require_dev_token(
         )
 
     try:
-        expected_token = load_config()["DEV_TOKEN"]
+        expected_token = load_dev_token()
     except MissingConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

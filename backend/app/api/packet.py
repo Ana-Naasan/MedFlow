@@ -10,11 +10,15 @@ from backend.app.cache import repo
 from backend.app.cache.store import (
     build_packet,
     get_evidence_card,
+    get_evidence_cards,
     get_patient_resource,
+    get_patient_resources,
     list_connectors,
     list_patient_ids,
 )
 from backend.app.config import CACHE_TTL_SECONDS
+from backend.app.knowledge.openfda import EvidenceSnippet
+from backend.app.reasoning.pipeline import build_reasoned_packet
 
 router = APIRouter(prefix="/patients", tags=["packet"], dependencies=[Depends(require_dev_token)])
 connectors_router = APIRouter(tags=["connectors"], dependencies=[Depends(require_dev_token)])
@@ -36,6 +40,34 @@ async def get_patients(db: AsyncSession = Depends(get_db)) -> list[dict[str, str
     return [{"id": pid} for pid in all_ids]
 
 
+async def _build_packet_body(patient_id: str) -> dict[str, object]:
+    """Build the servable DecisionPacket for a patient.
+
+    Runs the live reasoning pipeline (Gemini → citation gate → cache-authoritative
+    verifier); on any abstention it falls back to the static scaffold so the
+    result is always citation-safe. This is the production caller for
+    ``run_reasoning`` (EVAL-REVIEW BLOCKER #1).
+    """
+    scaffold = build_packet(patient_id)
+    evidence = [
+        EvidenceSnippet(
+            id=str(card["id"]),
+            kind="evidence",
+            ref=str(card["id"]),
+            label=str(card.get("snippet", "")),
+        )
+        for card in get_evidence_cards(patient_id)
+    ]
+    packet = await build_reasoned_packet(
+        scaffold,
+        get_patient_resources(patient_id),
+        evidence,
+        resource_lookup=get_patient_resource,
+        evidence_lookup=get_evidence_card,
+    )
+    return packet.model_dump()
+
+
 @router.get("/{patient_id}/packet")
 async def get_packet(
     patient_id: str,
@@ -46,9 +78,16 @@ async def get_packet(
 
     async def fetcher() -> dict[str, object]:
         nonlocal built
-        built = build_packet(patient_id).model_dump()
+        built = await _build_packet_body(patient_id)
         return built
 
+    # KNOWN LIMITATION (follow-up #66): on a REFRESH the fetcher's multi-second
+    # Gemini call runs inside this request's DB transaction while holding the
+    # per-patient advisory lock, so a pooled connection is held for the whole LLM
+    # latency. Fine for the single-user demo (and abstention is cheap), but at
+    # production concurrency over distinct patients it can exhaust the pool. The
+    # real fix moves the LLM call outside the txn/lock — deferred to avoid
+    # disturbing the once-only refresh guarantee here.
     row, cache_status = await repo.get_or_refresh(
         db,
         patient_id=patient_id,
@@ -87,7 +126,7 @@ async def refresh(
     response: Response,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> dict[str, object]:
-    body = build_packet(patient_id).model_dump()
+    body = await _build_packet_body(patient_id)
     await repo.upsert_resource(
         db,
         patient_id=patient_id,

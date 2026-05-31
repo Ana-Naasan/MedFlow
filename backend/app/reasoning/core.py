@@ -76,10 +76,14 @@ def _get_client() -> Client:
     """Return a synchronous Google GenAI client.
 
     The API key is read from the ``GOOGLE_GENAI_API_KEY`` environment
-    variable at call time.  Raises ``KeyError`` (or the configured
-    error handler) when unset.
+    variable at call time.  An unset OR blank key raises ``KeyError`` — a
+    uniform abstention signal the caller treats as "cannot reason".  (A blank
+    key must not reach ``Client(api_key="")``, which raises ``ValueError`` and
+    would escape the caller's abstention handling → HTTP 500.)
     """
-    api_key = os.environ["GOOGLE_GENAI_API_KEY"]
+    api_key = os.environ.get("GOOGLE_GENAI_API_KEY", "")
+    if not api_key.strip():
+        raise KeyError("GOOGLE_GENAI_API_KEY")
     return Client(api_key=api_key)
 
 
