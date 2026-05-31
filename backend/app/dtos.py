@@ -7,6 +7,12 @@ class Citation(BaseModel):
     label: str | None = Field(default=None, description="Display label for the citation.")
 
 
+class CategoryCompleteness(BaseModel):
+    category: str = Field(..., description="Clinical data category, e.g. Medications.")
+    documented: bool = Field(..., description="True if the category has documented data.")
+    gap_note: str | None = Field(default=None, description="Clinician to-do when not documented.")
+
+
 class Hypothesis(BaseModel):
     id: str
     title: str
@@ -24,6 +30,7 @@ class DecisionPacket(BaseModel):
     summary_markdown: str
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     data_gaps: list[str] = Field(default_factory=list)
+    completeness: list[CategoryCompleteness] = Field(default_factory=list)
     cache_status: str | None = None
 
 

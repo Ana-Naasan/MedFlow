@@ -1,5 +1,6 @@
 "use client";
 
+import { CompletenessIndicator } from "../../../components/CompletenessIndicator";
 import { SuggestionCard } from "../../../components/SuggestionCard";
 import { $api } from "../../../lib/api";
 import type { DecisionPacket } from "../../../lib/types";
@@ -32,19 +33,25 @@ export default function ProviderPacketPage() {
   }
 
   const packet = data as unknown as DecisionPacket;
+  const completeness = packet.completeness ?? [];
 
   return (
     <main>
       <div className="shell">
-        <section className="stack">
-          {packet.hypotheses.map((hypothesis) => (
-            <SuggestionCard
-              key={hypothesis.id}
-              hypothesis={hypothesis}
-              patientId={packet.patient_id}
-            />
-          ))}
-        </section>
+        <div className="packet-layout">
+          <section className="stack">
+            {packet.hypotheses.map((hypothesis) => (
+              <SuggestionCard
+                key={hypothesis.id}
+                hypothesis={hypothesis}
+                patientId={packet.patient_id}
+              />
+            ))}
+          </section>
+          {completeness.length > 0 && (
+            <CompletenessIndicator completeness={completeness} />
+          )}
+        </div>
       </div>
     </main>
   );

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { $api } from "../lib/api";
-import type { Citation } from "../lib/types";
+import type { Citation, Span } from "../lib/types";
+import { PdfHighlight } from "./PdfHighlight";
 
 interface CitationChipProps {
   citation: Citation;
@@ -50,6 +51,7 @@ export function CitationChip({ citation, patientId }: CitationChipProps) {
   const snippet = responseData?.snippet as string | undefined;
   const source = responseData?.source as string | undefined;
   const responseId = responseData?.id as string | undefined;
+  const span = responseData?.span as Span | undefined;
 
   const getModalBody = () => {
     if (activeQuery.isLoading) {
@@ -62,6 +64,7 @@ export function CitationChip({ citation, patientId }: CitationChipProps) {
     }
     if (activeQuery.isError) return <p>Failed to load citation.</p>;
     if (!responseData) return null;
+    if (span) return <PdfHighlight span={span} source={source} />;
     if (snippet) return <p className="citation-modal-snippet">{snippet}</p>;
     return (
       <p className="citation-modal-snippet">
