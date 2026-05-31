@@ -15,6 +15,8 @@ interface CitationChipProps {
 export function CitationChip({ citation, patientId }: CitationChipProps) {
   const [open, setOpen] = useState(false);
 
+  const isKnowledge = citation.kind === "evidence";
+
   const refParts = citation.ref.split("/");
   const resourceType = refParts[0] as string;
   const resourceId = refParts[1] ?? "";
@@ -52,8 +54,11 @@ export function CitationChip({ citation, patientId }: CitationChipProps) {
   const source = responseData?.source as string | undefined;
   const responseId = responseData?.id as string | undefined;
   const span = responseData?.span as Span | undefined;
+  const refUrl = responseData?.ref_url as string | undefined;
+  // Only surface http(s) links — guards against javascript:/data: schemes from the untyped response.
+  const sourceUrl = refUrl && /^https?:\/\//i.test(refUrl) ? refUrl : undefined;
 
-  const getModalBody = () => {
+  const getPanelBody = () => {
     if (activeQuery.isLoading) {
       return (
         <div className="citation-skeleton" role="status" aria-label="Loading citation">
@@ -65,9 +70,9 @@ export function CitationChip({ citation, patientId }: CitationChipProps) {
     if (activeQuery.isError) return <p>Failed to load citation.</p>;
     if (!responseData) return null;
     if (span) return <PdfHighlight span={span} source={source} />;
-    if (snippet) return <p className="citation-modal-snippet">{snippet}</p>;
+    if (snippet) return <p className="citation-panel-snippet">{snippet}</p>;
     return (
-      <p className="citation-modal-snippet">
+      <p className="citation-panel-snippet">
         {responseId ? `Resource: ${responseId}` : "Source not found."}
       </p>
     );
@@ -77,7 +82,7 @@ export function CitationChip({ citation, patientId }: CitationChipProps) {
     <>
       <button
         type="button"
-        className="chip-interactive"
+        className={`chip-interactive ${isKnowledge ? "chip-knowledge" : "chip-resource"}`}
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
       >
@@ -94,15 +99,26 @@ export function CitationChip({ citation, patientId }: CitationChipProps) {
             />
             <dialog
               open
-              className="citation-modal"
+              className="citation-panel"
               aria-modal="true"
               aria-label={citation.label ?? citation.ref}
             >
-              <p className="citation-modal-source">
+              <p className="citation-panel-source">
                 {source ?? citation.label ?? citation.ref}
               </p>
-              {getModalBody()}
-              <div className="citation-modal-footer">
+              {getPanelBody()}
+              {sourceUrl && (
+                <a
+                  className="citation-panel-link"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View source
+                  <span aria-hidden="true"> ↗</span>
+                </a>
+              )}
+              <div className="citation-panel-footer">
                 <button type="button" className="button secondary" onClick={() => setOpen(false)}>
                   Close
                 </button>

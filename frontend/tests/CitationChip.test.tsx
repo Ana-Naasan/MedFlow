@@ -31,6 +31,15 @@ const mockEvidenceData = {
   isLoading: false,
   isError: false,
 };
+const mockEvidenceWithUrl = {
+  data: {
+    snippet: "Aspirin and warfarin may increase bleeding risk.",
+    source: "DDInter",
+    ref_url: "https://ddinter.scbdd.com/",
+  },
+  isLoading: false,
+  isError: false,
+};
 const mockResourceData = {
   data: { resourceType: "Patient", id: "pat-001", gender: "female" },
   isLoading: false,
@@ -195,5 +204,65 @@ describe("CitationChip", () => {
     expect(
       screen.getByText("Aspirin and warfarin may increase bleeding risk.")
     ).toBeInTheDocument();
+  });
+
+  // --- Issue #25: knowledge-citation evidence side panel ---
+
+  it("knowledge chip uses the chip-knowledge variant class", () => {
+    render(<CitationChip citation={evidenceCitation} patientId="pat-001" />);
+    const chip = screen.getByRole("button", { name: "DDInter aspirin-warfarin" });
+    expect(chip).toHaveClass("chip-knowledge");
+    expect(chip).not.toHaveClass("chip-resource");
+  });
+
+  it("patient-fact chip uses the chip-resource variant class", () => {
+    render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
+    const chip = screen.getByRole("button", { name: "Patient/pat-001" });
+    expect(chip).toHaveClass("chip-resource");
+    expect(chip).not.toHaveClass("chip-knowledge");
+  });
+
+  it("renders the citation detail as a side panel", () => {
+    render(<CitationChip citation={evidenceCitation} patientId="pat-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "DDInter aspirin-warfarin" }));
+    expect(screen.getByRole("dialog")).toHaveClass("citation-panel");
+  });
+
+  it("knowledge panel renders an outbound source link to ref_url", () => {
+    vi.mocked($api.useQuery).mockReturnValue(mockEvidenceWithUrl as never);
+    render(<CitationChip citation={evidenceCitation} patientId="pat-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "DDInter aspirin-warfarin" }));
+    const link = screen.getByRole("link", { name: /view source/i });
+    expect(link).toHaveAttribute("href", "https://ddinter.scbdd.com/");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("rel") ?? "").toContain("noopener");
+  });
+
+  it("knowledge panel omits the source link when ref_url is absent", () => {
+    vi.mocked($api.useQuery).mockReturnValue(mockEvidenceData as never);
+    render(<CitationChip citation={evidenceCitation} patientId="pat-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "DDInter aspirin-warfarin" }));
+    expect(screen.queryByRole("link", { name: /view source/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Aspirin and warfarin may increase bleeding risk.")
+    ).toBeInTheDocument();
+  });
+
+  it("patient-fact panel has no outbound source link", () => {
+    vi.mocked($api.useQuery).mockReturnValue(mockResourceData as never);
+    render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "Patient/pat-001" }));
+    expect(screen.queryByRole("link", { name: /view source/i })).not.toBeInTheDocument();
+  });
+
+  it("does not render a link for a non-http ref_url (scheme guard)", () => {
+    vi.mocked($api.useQuery).mockReturnValue({
+      data: { snippet: "x", source: "DDInter", ref_url: "javascript:alert(1)" },
+      isLoading: false,
+      isError: false,
+    } as never);
+    render(<CitationChip citation={evidenceCitation} patientId="pat-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "DDInter aspirin-warfarin" }));
+    expect(screen.queryByRole("link", { name: /view source/i })).not.toBeInTheDocument();
   });
 });
