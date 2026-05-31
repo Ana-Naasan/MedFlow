@@ -1,0 +1,12 @@
+# OS
+.DS_Store
+
+# Archives and large local dumps (not source)
+*.zip
+Whitmore_medical_record_40_docs/
+
+# Vendored / reference clones with their own git history
+Claude-Features/
+awesome-design-md/
+hallmark/
+prompt-master/
