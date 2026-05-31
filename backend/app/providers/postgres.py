@@ -610,13 +610,11 @@ class PostgresProvider(Provider):
             "AllergyIntolerance": ("allergies", Capability.ALLERGIES),
             "Procedure": ("procedures", Capability.PROCEDURES),
         }
-        returned_caps: set[str] = set()
-        for r in resources:
-            entry = _cap_flag_for_type.get(r.get("resourceType", ""))
-            if entry is None:
-                continue
-            cap_name, _ = entry
-            returned_caps.add(cap_name)
+        returned_caps: set[str] = {
+            _cap_flag_for_type[rtype][0]
+            for r in resources
+            if (rtype := r.get("resourceType", "")) in _cap_flag_for_type
+        }
 
         coverage: dict[str, dict[str, bool]] = {}
         for cap_name, cap_flag in _cap_flag_for_type.values():
