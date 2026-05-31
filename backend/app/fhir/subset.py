@@ -271,10 +271,7 @@ def _is_mrn_identifier(ident: Any) -> bool:
     coding = id_type.get("coding")
     if not isinstance(coding, list):
         return False
-    return any(
-        isinstance(c, dict) and c.get("code") == "MR"
-        for c in coding
-    )
+    return any(isinstance(c, dict) and c.get("code") == "MR" for c in coding)
 
 
 def _apply_patient_minimisation(obj: Any) -> Any:
