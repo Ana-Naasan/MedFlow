@@ -1,16 +1,47 @@
 {
+  "version": "1.0",
+  "timestamp": "2026-05-31T08:12:44.541Z",
+  "phase": "1",
+  "phase_name": "Foundation & Contracts (M0) — boundary complete; spilling into M1/M2",
+  "phase_dir": ".planning/phases/01-foundation-contracts-m0-setup",
   "status": "paused",
-  "phase": "1 — Foundation & Contracts (M0 Setup), ~93%",
-  "timestamp": "2026-05-31",
+  "context": "issue-driven merge-queue (no GSD phase PLAN.md); planning branch",
   "branch": "planning",
-  "commit": "4c744fd",
-  "open_prs": [
-    {"number": 55, "issue": 12, "title": "real Postgres cache", "state": "reviewed, NOT merged — reconcile with #51 stand-in cache/store.py + 100% gate on app/cache; M1 §22 prerequisite"},
-    {"number": 56, "issue": 14, "title": "openFDA drug-safety", "state": "reviewed, NOT merged — 100% gate on app/knowledge+app/reasoning"},
-    {"number": 58, "issue": 11, "title": "MockFHIR connector (CONN-02)", "state": "NOT yet reviewed — appeared at pause; M1 §22 prerequisite, prioritize"},
-    {"number": 59, "issue": 27, "title": "PDF connector w/ char-offset provenance (CONN-04)", "state": "NOT yet reviewed — appeared at pause; Phase 4/M3 work"}
+  "commit": "0077fe3",
+  "planning_synced": true,
+  "merged_this_session": [
+    {"pr": 58, "issue": 11, "what": "MockFHIR connector (CONN-02)", "commit": "b124bfd"},
+    {"pr": 55, "issue": 12, "what": "Postgres cache + refresh-on-read (CACHE-01..04)", "commit": "dfc63ee"},
+    {"pr": 56, "issue": 14, "what": "openFDA connector, real API shapes (KNOW-02)", "commit": "cd1607f"},
+    {"pr": 64, "issue": 13, "what": "X-Cache /packet wiring", "commit": "3a443d0"},
+    {"pr": 61, "issue": null, "what": "FE-07 typed-client + openapi.json regen", "commit": "b6bf763"},
+    {"pr": 60, "issue": 23, "what": "PostgresProvider, two institutions (CONN-03)", "commit": "2e509ca"},
+    {"pr": 69, "issue": null, "what": "M0 boundary review + SEC-02 fail-closed allow-list + HL7v2 empty-PID guard", "commit": "34a30ad"}
   ],
-  "blockers": ["Awaiting Bader's go before merging the queue; he wanted to review the #55 cache-overlap vs #51 stand-in first"],
-  "next_action": "On 'go', run full review->merge flow in dependency order: #58 MockFHIR + #55 cache (reconcile vs #51 stand-in) first (M1 prerequisites), then #56 openFDA, then #59 PDF. Each: code+test+Copilot review -> approve -> squash-merge -> close. Then run the PHASE-BOUNDARY REVIEW GATE before advancing to Phase 2.",
-  "notes": "Repo is squash-only now. Measure coverage on Python 3.12 only (local 3.9 gives false ~13%). Always git reset --hard origin/planning after each gh pr merge before doc-sync commits. CI gate is --cov-fail-under=100 on fhir/providers/cache/knowledge/reasoning, so every new PR touching those must ship full coverage."
+  "open_prs": [
+    {"number": 59, "issue": 27, "title": "PDF connector (CONN-04, M3)", "author": "VMotta1", "state": "NOT merged — local WIP on feat/pdf-connector (planning merged + lint fixed) committed LOCALLY but NOT pushed. Fails gate: pdf.py 92% (12 uncovered lines) AND emits MedicationRequest, NOT in the 6-resource subset (flatten/reason expect MedicationStatement). Needs: remap MedicationRequest->MedicationStatement (valid R4B) + tests to 100%."},
+    {"number": 63, "issue": 33, "title": "observability: structured logging + partial-data warnings (M4)", "author": "B2707", "state": "not reviewed"},
+    {"number": 62, "issue": null, "title": "ci: Claude auto-review GitHub Action", "author": "B2707", "state": "open — BLOCKED on human action (see human_actions_pending)"},
+    {"number": 68, "issue": null, "title": "chore: adding deployment (OPS-02, M4)", "author": "HamzaAlsarakbi", "state": "DRAFT — not ready"}
+  ],
+  "open_follow_up_issues": [
+    {"number": 65, "what": "openFDA hardening (malformed-data safety, Retry-After, serious-umbrella, raw_* aliasing, id determinism, bucket lock)"},
+    {"number": 66, "what": "cache->API (live-PG concurrency test, cache_status single-source, non-pat-001 packets)"},
+    {"number": 67, "what": "PostgresProvider integration/hardening (registry wiring + /connectors off static list, R4B model round-trip, coverage/partial honesty, SELECT-only role wiring, deeper A==B + integration tests, pool race)"}
+  ],
+  "human_actions_pending": [
+    {"action": "Install the Claude GitHub App (github.com/apps/claude) on B2707/umraa + add an auth secret (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) + enable read/write workflow permissions", "context": "Required before PR #62 (Claude auto-review Action) does anything; it will not retro-review existing PRs (only new PRs / new pushes)", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Per-PR flow: reconcile (merge planning) -> full gate on Python 3.12 -> Claude deep-review (+ adversarial Workflow for correctness-critical) -> fix-forward -> admin squash-merge -> close issue", "rationale": "user-directed; Copilot errored/conflict-skipped on most PRs so Claude is the reviewer"},
+    {"decision": "Opus for EVERY agent (model_overrides in .planning/config.json + ~/.gsd/defaults.json); code-review depth = deep", "rationale": "user mandate, Claude Max 20x"},
+    {"decision": "SEC-02 minimisation is now a fail-closed allow-list (PR #69)", "rationale": "deny-list missed Synthea PHI fields; allow-list drops unknown/future fields"}
+  ],
+  "blockers": [
+    {"description": "PR #62 auto-review inert until the Claude GitHub App + secret are installed (admin/OAuth, human-only)", "type": "human_action", "workaround": "Claude reviews PRs manually meanwhile"},
+    {"description": "PR #59 fails the 100% gate + emits wrong med resource type", "type": "technical", "workaround": "remap + cover, or hand findings to Vivek"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Resume the queue. Priority order: (1) finish PR #59 — checkout feat/pdf-connector (local WIP there), remap MedicationRequest->MedicationStatement to valid R4B, cover the 12 pdf.py lines to 100%, gate, push, merge; OR post #59 findings to Vivek. (2) Do the #62 human steps then merge #62. (3) Review/merge #63 (observability, M4). (4) #68 when un-drafted.",
+  "context_notes": "Critical path is DONE: M0 complete, M1 §22-slice spine (MockFHIR -> cache+refresh -> openFDA -> /packet with X-Cache), M2 two-institution PostgresProvider, SEC-02 fail-closed. Remaining PRs are M3/M4 widen work. PROCESS REMINDERS: coverage MUST be on Python 3.12 (venv /tmp/umraa-py312; local python3 is 3.9 and gives false low coverage). Self-approve fails on own PRs — use `gh pr merge N --squash --admin --delete-branch`. ALWAYS `git fetch && git reset --hard origin/planning` after each merge before the next .planning doc commit. NO AI-trace watermarks in commits/code ('claude' as the product name in PR #62/#69 is intentional). pull_request CI silently SKIPS when a PR has a merge conflict (no mergeable commit) — if checks show nothing, run `gh pr view N --json mergeable` and merge planning into the branch to resolve."
 }
