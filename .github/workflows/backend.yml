@@ -44,11 +44,15 @@ jobs:
           pip install -r requirements.txt
           ruff check .
           black --check .
-          # Coverage measured on the correctness-critical core (reasoning + providers).
-          # Gate is 0 while these packages are still scaffold stubs; RAISE BACK TO 70
-          # as real code + tests land (#3 Provider ABC, #15 reasoning core, #16 verifier).
+          # Coverage gate on the correctness-critical core (PRD two-tier bar):
+          # FHIR subset/flattener/refs, connectors, cache, knowledge joins, and the
+          # reasoning core must stay fully covered. Polish/wiring (api, dtos, main)
+          # is not gated here. Held at 100% — drop only with a documented reason.
           pytest \
-            --cov=app/reasoning \
+            --cov=app/fhir \
             --cov=app/providers \
+            --cov=app/cache \
+            --cov=app/knowledge \
+            --cov=app/reasoning \
             --cov-report=term-missing \
-            --cov-fail-under=0
+            --cov-fail-under=100

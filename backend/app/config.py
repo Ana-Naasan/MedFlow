@@ -4,6 +4,9 @@ import os
 
 REQUIRED_ENV_VARS = ("GOOGLE_GENAI_API_KEY", "OPENFDA_API_KEY", "DEV_TOKEN")
 
+# How long a cached resource stays fresh before a re-fetch is triggered.
+CACHE_TTL_SECONDS: int = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
+
 
 class MissingConfigurationError(RuntimeError):
     """Raised when a required runtime secret or key is not set."""
