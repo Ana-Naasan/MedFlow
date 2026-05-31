@@ -2,6 +2,7 @@ export interface Citation {
   kind: string;
   ref: string;
   label: string | null;
+  source_span?: Span | null;
 }
 
 export interface Hypothesis {
