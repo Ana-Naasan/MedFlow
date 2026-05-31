@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MedFlow — Navigation Wireframes</title>
+<link rel="stylesheet" href="wf.css" />
+</head>
+<body class="straight">
+  <div id="controlbar">
+    <div class="cb-brand">MedFlow <small>nav wireframes</small></div>
+
+    <div class="cb-group">
+      <span class="cb-label">Direction</span>
+      <div class="seg" id="seg-dir">
+        <button data-dir="A">A · Mega-menu</button>
+        <button data-dir="B">B · Role-first</button>
+        <button data-dir="C">C · Rail + ⌘K</button>
+      </div>
+    </div>
+
+    <div class="cb-group">
+      <span class="cb-label">Page</span>
+      <div class="seg" id="seg-page">
+        <button data-page="home">Home</button>
+        <button data-page="eap">EAP</button>
+        <button data-page="pricing">Pricing</button>
+      </div>
+    </div>
+
+    <div class="cb-spacer"></div>
+
+    <label class="cb-toggle"><input type="checkbox" id="t-notes" checked /> annotations</label>
+    <label class="cb-toggle"><input type="checkbox" id="t-straight" checked /> straight lines</label>
+  </div>
+
+  <div id="stage"></div>
+
+  <script src="data.js"></script>
+  <script src="render.js"></script>
+  <script>
+    document.getElementById("seg-dir").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-dir]"); if (b) window.MFApp.setDir(b.dataset.dir);
+    });
+    document.getElementById("seg-page").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-page]"); if (b) window.MFApp.setPage(b.dataset.page);
+    });
+    document.getElementById("t-notes").addEventListener("change", (e) => {
+      document.body.classList.toggle("no-notes", !e.target.checked);
+    });
+    document.getElementById("t-straight").addEventListener("change", (e) => {
+      document.body.classList.toggle("straight", e.target.checked);
+    });
+  </script>
+</body>
+</html>
