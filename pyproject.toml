@@ -13,3 +13,6 @@ select = ["E", "F", "I", "B", "UP", "ASYNC"]
 [tool.pytest.ini_options]
 testpaths = ["backend/app/tests"]
 addopts = "-q"
+markers = [
+    "live: tests that hit the real OpenFDA API (skipped by default)",
+]

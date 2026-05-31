@@ -36,5 +36,18 @@
   "hooks": {
     "context_warnings": true,
     "workflow_guard": true
+  },
+  "model_overrides": {
+    "gsd-plan-checker": "opus",
+    "gsd-verifier": "opus",
+    "gsd-nyquist-auditor": "opus",
+    "gsd-doc-writer": "opus",
+    "gsd-debugger": "opus",
+    "gsd-security-auditor": "opus",
+    "gsd-ui-checker": "opus",
+    "gsd-ui-auditor": "opus",
+    "gsd-integration-checker": "opus",
+    "gsd-eval-auditor": "opus",
+    "gsd-doc-verifier": "opus"
   }
 }

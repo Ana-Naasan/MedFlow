@@ -415,3 +415,108 @@ class TestReasoningView:
         }
         view = reasoning_view(raw)
         assert "identifier" not in view
+
+    def test_age_years_not_computed_when_birth_date_invalid(self):
+        """_compute_age_years returns None for unparseable values."""
+        for bad in ["", "not-a-date", None, 12345]:
+            raw = {
+                "resourceType": "Patient",
+                "id": "p1",
+                "birthDate": bad,
+            }
+            view = reasoning_view(raw)
+            assert "ageYears" not in view
+
+    def test_identifier_without_type_coding_ignored(self):
+        """_is_mrn_identifier returns False when type/coding is missing."""
+        raw = {
+            "resourceType": "Patient",
+            "id": "p1",
+            "birthDate": "2000-01-01",
+            "identifier": [
+                {"value": "test", "type": {}},
+                {"value": "test2"},
+                "not-a-dict",
+            ],
+        }
+        view = reasoning_view(raw)
+        assert "identifier" not in view
+
+    # ── Fail-closed allow-list (SEC-02 hardening) ──────────────────────────
+
+    def test_allow_list_drops_synthea_identity_fields(self):
+        """A realistic Synthea Patient: text/photo/communication/maritalStatus/
+        extension carry PHI and must all be dropped by the allow-list."""
+        raw = {
+            "resourceType": "Patient",
+            "id": "p1",
+            "gender": "female",
+            "birthDate": "1944-02-18",
+            "text": {"status": "generated", "div": "<div>Jane Q. Public, 12 Elm St</div>"},
+            "photo": [{"contentType": "image/png", "data": "c2VjcmV0"}],
+            "communication": [{"language": {"text": "English"}}],
+            "maritalStatus": {"text": "Married"},
+            "generalPractitioner": [{"reference": "Practitioner/dr-1"}],
+            "managingOrganization": {"reference": "Organization/org-1"},
+            "extension": [
+                {
+                    "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+                    "valueString": "redacted-race",
+                },
+                {
+                    "url": "http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName",
+                    "valueString": "Secret",
+                },
+            ],
+            "identifier": [{"value": "MRN001", "type": {"coding": [{"code": "MR"}]}}],
+        }
+        view = reasoning_view(raw)
+        for leaked in (
+            "text",
+            "photo",
+            "communication",
+            "maritalStatus",
+            "generalPractitioner",
+            "managingOrganization",
+            "extension",
+            "birthDate",
+        ):
+            assert leaked not in view, f"{leaked} must not survive minimisation"
+        # Only the allow-listed + derived fields remain.
+        assert set(view) == {"resourceType", "id", "gender", "ageYears", "identifier"}
+
+    def test_allow_list_is_fail_closed_for_unknown_fields(self):
+        """An un-enumerated/future field is dropped rather than passed through."""
+        raw = {
+            "resourceType": "Patient",
+            "id": "p1",
+            "gender": "male",
+            "someFutureFieldWithPhi": {"ssn": "123-45-6789"},
+        }
+        view = reasoning_view(raw)
+        assert "someFutureFieldWithPhi" not in view
+        assert set(view) == {"resourceType", "id", "gender"}
+
+    def test_allow_list_drops_pii_on_contained_patient(self):
+        """A Patient nested under another resource's `contained` is allow-listed
+        too — Synthea identity extensions there must not leak."""
+        raw = {
+            "resourceType": "Observation",
+            "id": "o1",
+            "contained": [
+                {
+                    "resourceType": "Patient",
+                    "id": "p-contained",
+                    "gender": "female",
+                    "birthDate": "1950-03-10",
+                    "extension": [{"url": "x", "valueString": "secret"}],
+                    "text": {"div": "<div>leak</div>"},
+                }
+            ],
+            "subject": {"reference": "Patient/p-contained"},
+        }
+        view = reasoning_view(raw)
+        contained = view["contained"][0]
+        assert "extension" not in contained
+        assert "text" not in contained
+        assert set(contained) == {"resourceType", "id", "gender", "ageYears"}

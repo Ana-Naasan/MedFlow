@@ -93,7 +93,11 @@ def _parse_adt(raw: str) -> dict:
     def _f(idx: int) -> str:
         return fields[idx].strip() if idx < len(fields) else ""
 
-    patient_id = _f(3).split("^")[0] or "unknown"
+    patient_id = _f(3).split("^")[0]
+    if not patient_id:
+        # hl7apy auto-materialises an empty PID segment, so a message with no
+        # PID does not raise above. Refuse to fabricate a Patient/unknown.
+        raise ConnectorDataError("HL7v2 message has no PID-3 patient identifier")
 
     name_parts = _f(5).split("^")
     family = name_parts[0] if name_parts else ""

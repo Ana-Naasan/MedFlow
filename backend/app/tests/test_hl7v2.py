@@ -76,6 +76,25 @@ def test_parse_adt_invalid_message_raises_connector_data_error() -> None:
         _parse_adt("this is not hl7")
 
 
+_ADT_NO_PID = (
+    "MSH|^~\\&|HOSP|FAC|RECV|RECV|20260530120000||ADT^A01|MSG003|P|2.5\r"
+    "EVN|A01|20260530120000\r"
+    "PV1|1|I|WARD3B\r"
+)
+
+
+def test_parse_adt_no_pid_raises_instead_of_fabricating_patient() -> None:
+    """A parseable ADT with no PID segment must raise, not emit Patient/unknown."""
+    with pytest.raises(ConnectorDataError):
+        _parse_adt(_ADT_NO_PID)
+
+
+def test_fetch_patient_no_pid_raises_connector_data_error() -> None:
+    provider = HL7v2Provider(_ADT_NO_PID)
+    with pytest.raises(ConnectorDataError):
+        asyncio.run(provider.fetch_patient("PAT001"))
+
+
 # ── HL7v2Provider integration tests ──────────────────────────────────────────
 
 
