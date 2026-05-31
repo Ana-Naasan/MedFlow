@@ -1,7 +1,5 @@
 """Smoke tests: the google-genai SDK is installed and importable."""
 
-import importlib
-
 
 def test_google_genai_sdk_importable() -> None:
     """google-genai must be installed (added in Subtask 1)."""

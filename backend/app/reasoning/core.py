@@ -38,10 +38,6 @@ _KNOWN_CITATION_KINDS: frozenset[str] = frozenset({"resource", "evidence"})
 # Regex to extract ``[ResourceType/id]`` from flattened patient text.
 _TAG_RE = re.compile(r"\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]")
 
-# Regex to extract bare ``ResourceType/id`` (without brackets).
-_BARE_TAG_RE = re.compile(r"[A-Za-z]+/[a-zA-Z0-9_.:-]+")
-
-
 # ── Client factory ─────────────────────────────────────────────────────────
 
 
