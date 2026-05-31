@@ -11,6 +11,7 @@ from backend.app.providers.base import (
     Provider,
 )
 from backend.app.providers.hl7v2 import HL7v2Provider
+from backend.app.providers.pdf import PDFProvider, TextSpan
 from backend.app.providers.registry import ConnectorNotFound, build, list_connectors, register
 
 __all__ = [
@@ -22,8 +23,10 @@ __all__ = [
     "FetchResult",
     "HealthStatus",
     "HL7v2Provider",
+    "PDFProvider",
     "Provider",
     "Provenance",
+    "TextSpan",
     "build",
     "list_connectors",
     "register",
