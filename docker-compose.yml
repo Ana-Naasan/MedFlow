@@ -27,6 +27,7 @@ services:
       - "5433:5432"
     volumes:
       - institution_a_data:/var/lib/postgresql/data
+      - ./backend/app/seeds/institution_a.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${INSTITUTION_A_USER:-umraa} -d ${INSTITUTION_A_NAME:-institution_a}"]
       interval: 5s
@@ -44,6 +45,7 @@ services:
       - "5434:5432"
     volumes:
       - institution_b_data:/var/lib/postgresql/data
+      - ./backend/app/seeds/institution_b.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${INSTITUTION_B_USER:-umraa} -d ${INSTITUTION_B_NAME:-institution_b}"]
       interval: 5s
