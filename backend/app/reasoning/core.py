@@ -5,8 +5,13 @@ This module wires together the end-to-end reasoning pipeline:
 1. Assemble the prompt via ``prompts.build_reasoning_prompt()``
 2. Call Google Gemini with structured JSON output
 3. Parse the response into :class:`~backend.app.dtos.Hypothesis` objects
-4. Verify that every patient-fact and evidence citation actually resolves
-   (REASON-02 deterministic verifier)
+4. Verify every patient-fact and evidence citation resolves AND every
+   citation kind is known — an unknown kind taints the whole hypothesis,
+   not just that one citation (REASON-02 / #75 per-clause grounding).
+5. Apply the deterministic output-language gate (#75) — drop hypotheses
+   whose ``title``/``why`` contains causal attribution, drug directives,
+   or dose directives. Mirrors the fail-closed posture of the citation
+   gate so the invariant doesn't depend on model compliance.
 
 Usage
 -----
@@ -33,7 +38,9 @@ from backend.app.reasoning.prompts import build_reasoning_prompt
 DEFAULT_MODEL = "gemini-2.5-flash"
 
 # Known citation kinds that the verifier will check.  Any citation whose
-# kind is outside this set is silently dropped (anti-hallucination).
+# kind is outside this set is treated as a verification failure for the
+# WHOLE hypothesis (#75 per-clause grounding) — the unknown citation likely
+# backs a fabricated claim in the free-text ``why``/``title``.
 _KNOWN_CITATION_KINDS: frozenset[str] = frozenset({"resource", "evidence"})
 
 # Regex to extract ``[ResourceType/id]`` from flattened patient text.
@@ -48,17 +55,39 @@ _TAG_RE = re.compile(r"^\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]", re.MULTILINE)
 # title/why asserting causation or a prescriptive drug directive is dropped,
 # mirroring the fail-closed posture of the citation gate so the non-negotiable
 # output-language invariant ("may be associated", never "caused by"/"stop drug X")
-# does not depend on model compliance. NOTE: the phrase set is intentionally
-# conservative (canonical violations only, to avoid flagging valid associational
-# text like "increased risk") and is meant for clinical/team review before this
-# gate is relied upon in production — see #75.
+# does not depend on model compliance.
+#
+# Phrase set is intentionally curated to avoid false-positives on valid
+# associational text. In particular:
+#   - bare "increase"/"decrease" is NEVER matched (would flag "increased risk",
+#     "increase in INR"); only the dose-directive form below is matched
+#   - bare "stop"/"start" is NEVER matched (would flag "stop the bleeding",
+#     "start of symptoms"); only the verbed forms ("stop taking",
+#     "should stop", "recommend stopping") are matched
+#   - "cause" / "cause of" without "caused by"/"causes" is NOT matched (would
+#     flag "the cause is unclear", "uncertain cause")
+#
+# Editing this set is a clinical/UX judgement call — see #75 for the broader
+# curation review.
 _FORBIDDEN_LANGUAGE = re.compile(
-    r"\bcaused\s+by\b"  # causal attribution
-    r"|\bcauses\b"  # causal attribution
-    r"|\bdue\s+to\b"  # causal attribution
-    r"|\bdiscontinue\b"  # drug directive
-    r"|\bstop\s+taking\b"  # drug directive
-    r"|\bmust\s+(?:stop|start)\b",  # prescriptive directive
+    # ── Causal attribution ──────────────────────────────────────────────
+    r"\bcaused\s+by\b" r"|\bcauses\b" r"|\bdue\s+to\b"
+    # ── Direct drug directives ──────────────────────────────────────────
+    r"|\bdiscontinue\b" r"|\bstop\s+taking\b" r"|\bmust\s+(?:stop|start)\b"
+    # ── Recommendation-form directives (#75 broadening) ─────────────────
+    # "recommend stopping X" / "recommends discontinuing X" / etc.
+    r"|\brecommend(?:s|ed|ing)?\s+(?:stopping|discontinuing|starting|switching|changing)\b"
+    # "should stop/start/discontinue/switch X" (verbed — won't catch
+    # "stop the bleeding")
+    r"|\bshould\s+(?:stop|discontinue|start|switch)\b"
+    # "should not take/use/continue/start X"
+    r"|\bshould\s+not\s+(?:take|use|continue|start)\b"
+    # "advise against/stopping/discontinuing/starting"
+    r"|\b(?:we\s+|strongly\s+)?advise\s+(?:against|stopping|discontinuing|starting)\b"
+    # ── Dose directives ─────────────────────────────────────────────────
+    # Narrow "increase/decrease/reduce the dose/dosage/frequency" — does
+    # NOT match bare "increased risk" / "decrease in eGFR".
+    r"|\b(?:increase|decrease|reduce)\s+the\s+(?:dose|dosage|frequency)\b",
     re.IGNORECASE,
 )
 
@@ -191,11 +220,20 @@ def verify_citations(
       or ``[Patient/pat-001]``) exists as a tag in the flattened text.
     * ``kind == "evidence"`` — its ``ref`` matches one of the
       provided *evidence_ids*.
-    * Any citation whose ``kind`` is not in the known set is silently
-      dropped (anti-hallucination on unknown kinds).
 
-    If **any** verified citation in a hypothesis fails to resolve,
-    the entire hypothesis is dropped.
+    Per-clause prose grounding (#75 hardening)
+    ------------------------------------------
+    Any citation whose ``kind`` is not in the known set is now treated as a
+    **verification failure for the whole hypothesis** — not silently filtered.
+    Rationale: an unknown-kind citation is a strong tell of hallucination, and
+    the hypothesis's free-text ``why``/``title`` may well be relying on the
+    fabricated source. Surfacing only the structured-citation subset while the
+    prose still asserts the unsupported claim is worse than dropping the
+    whole entry. Previously such hypotheses survived on their remaining known
+    citations; now they're dropped.
+
+    If **any** citation (known or unknown) fails to resolve, the entire
+    hypothesis is dropped.
 
     Parameters
     ----------
@@ -209,7 +247,7 @@ def verify_citations(
     Returns
     -------
     list[Hypothesis]
-        Surviving hypotheses.
+        Surviving hypotheses (all citations verified, all kinds known).
     """
     if not hypotheses:
         return hypotheses
@@ -218,10 +256,14 @@ def verify_citations(
 
     verified: list[Hypothesis] = []
     for h in hypotheses:
-        # Filter out unknown citation kinds, then check surviving ones.
-        known_citations = [c for c in h.citations if c.kind in _KNOWN_CITATION_KINDS]
+        if not h.citations:
+            continue
+        # Per-clause grounding (#75): an unknown citation kind taints the
+        # whole hypothesis — its prose may rely on the fabricated source.
+        if any(c.kind not in _KNOWN_CITATION_KINDS for c in h.citations):
+            continue
         valid = True
-        for c in known_citations:
+        for c in h.citations:
             if c.kind == "resource":
                 bare_ref = _strip_brackets(c.ref)
                 if bare_ref not in patient_tags:
@@ -231,9 +273,7 @@ def verify_citations(
                 if c.ref not in evidence_ids:
                     valid = False
                     break
-        if valid and known_citations:
-            # Keep only known citations in the output hypothesis
-            h.citations = known_citations
+        if valid:
             verified.append(h)
     return verified
 
@@ -252,8 +292,16 @@ async def run_reasoning(
     1. Build the prompt from patient context + evidence cards.
     2. Call Gemini with ``response_mime_type="application/json"``.
     3. Parse the structured JSON response.
-    4. Verify that every citation resolves (REASON-02).
-    5. Return the surviving hypotheses.
+    4. Verify every citation resolves AND every citation kind is known —
+       a single unknown-kind citation drops the whole hypothesis as a
+       fabrication tell (REASON-02 / #75 per-clause grounding).
+    5. Apply the deterministic output-language gate: drop any hypothesis
+       whose ``title``/``why`` contains causal attribution ("caused by",
+       "due to"), drug directives ("discontinue", "stop taking", "should
+       stop"), or dose directives ("increase the dose"). Curated to avoid
+       false-positives on valid associational text like "increased risk"
+       (#75 hardening of AI-SPEC §5 dim 3).
+    6. Return the surviving hypotheses.
 
     If the Gemini API call fails (network error, rate limit, auth failure)
     the error is caught and an empty list is returned — the caller should
