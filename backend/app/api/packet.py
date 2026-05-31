@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.auth import require_dev_token
@@ -29,6 +29,7 @@ _FETCH_METADATA_TYPE = "FetchMetadata"
 router = APIRouter(prefix="/patients", tags=["packet"], dependencies=[Depends(require_dev_token)])
 connectors_router = APIRouter(tags=["connectors"], dependencies=[Depends(require_dev_token)])
 evidence_router = APIRouter(tags=["evidence"], dependencies=[Depends(require_dev_token)])
+audit_router = APIRouter(tags=["audit"], dependencies=[Depends(require_dev_token)])
 
 
 async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
@@ -194,3 +195,23 @@ async def get_evidence(evidence_id: str) -> dict[str, object]:
     if evidence is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evidence not found")
     return evidence
+
+
+@audit_router.get("/audit")
+async def get_audit(
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> list[dict[str, object]]:
+    """Read the immutable audit log, newest first (API-05)."""
+    events = await repo.list_audit_events(db, limit=limit)
+    return [
+        {
+            "id": event.id,
+            "event_type": event.event_type,
+            "patient_id": event.patient_id,
+            "resource_ref": event.resource_ref,
+            "actor": event.actor,
+            "occurred_at": event.occurred_at.isoformat() if event.occurred_at else None,
+        }
+        for event in events
+    ]

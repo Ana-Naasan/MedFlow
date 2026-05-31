@@ -24,6 +24,7 @@ from backend.app.reasoning.core import (
     _get_client,
     _has_forbidden_language,
     _strip_brackets,
+    derive_confidence_tier,
     parse_gemini_response,
     run_reasoning,
     verify_citations,
@@ -584,6 +585,52 @@ class TestVerifyCitations:
         assert [h.id for h in result] == ["good"]
 
 
+# ── derive_confidence_tier (REASON-03) ─────────────────────────────────────
+
+
+class TestDeriveConfidenceTier:
+    def test_evidence_citation_is_high(self) -> None:
+        """≥1 evidence citation → Tier 1 high (direct external-evidence link)."""
+        h = Hypothesis(
+            id="h",
+            title="t",
+            why="w",
+            severity="moderate",
+            confidence="low",  # model self-report — must be overridden
+            citations=[
+                Citation(kind="resource", ref="MedicationStatement/ms-001", label="x"),
+                Citation(kind="evidence", ref="openfda:1:total", label="y"),
+            ],
+        )
+        assert derive_confidence_tier(h) == "high"
+
+    def test_resource_only_is_medium(self) -> None:
+        """Only resource citations → Tier 2 medium (no external corroboration)."""
+        h = Hypothesis(
+            id="h",
+            title="t",
+            why="w",
+            severity="moderate",
+            confidence="high",  # model self-report — must be overridden
+            citations=[
+                Citation(kind="resource", ref="MedicationStatement/ms-001", label="x"),
+            ],
+        )
+        assert derive_confidence_tier(h) == "medium"
+
+    def test_no_citations_is_low(self) -> None:
+        """No surviving citations → Tier 3 low (speculative)."""
+        h = Hypothesis(
+            id="h",
+            title="t",
+            why="w",
+            severity="moderate",
+            confidence="high",  # model self-report — must be overridden
+            citations=[],
+        )
+        assert derive_confidence_tier(h) == "low"
+
+
 class TestGetClient:
     def test_client_created_with_api_key(self) -> None:
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key-123"}):
@@ -665,6 +712,8 @@ class TestRunReasoning:
         assert len(h.citations) == 2
         assert h.citations[0].kind == "resource"
         assert h.citations[1].kind == "evidence"
+        # REASON-03: model self-reported "medium", but it cites evidence → overridden to high.
+        assert h.confidence == "high"
 
     @pytest.mark.asyncio
     async def test_drops_hypothesis_with_forbidden_language(
@@ -706,6 +755,61 @@ class TestRunReasoning:
                 hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
 
         assert hypotheses == []  # citation resolved, but "caused by" prose is dropped
+
+    @pytest.mark.asyncio
+    async def test_medium_tier_override_resource_only(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """REASON-03 medium path end-to-end: Gemini self-reports some confidence,
+        but the surviving citations are resource-only (no external evidence) →
+        the final confidence is overridden to "medium" (Tier 2)."""
+        response_text = json.dumps(
+            {
+                "hypotheses": [
+                    {
+                        "title": "Lisinopril and dizziness",
+                        "why": "Patient on lisinopril is associated with reported dizziness.",
+                        "severity": "moderate",
+                        "confidence": "high",
+                        "citations": [
+                            {
+                                "kind": "resource",
+                                "ref": "MedicationStatement/ms-001",
+                                "label": "Lisinopril",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+        mock_response = MagicMock()
+        mock_response.text = response_text
+
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.return_value = mock_response
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
+
+        assert len(hypotheses) == 1
+        h = hypotheses[0]
+        assert len(h.citations) == 1
+        assert h.citations[0].kind == "resource"
+        # Model self-reported "high", but only a resource citation resolved → medium.
+        assert h.confidence == "medium"
 
     @pytest.mark.asyncio
     async def test_abstention_on_gemini_api_error(

@@ -426,6 +426,29 @@ def verify_citations(
     return verified
 
 
+# ── Source-derived confidence tier (REASON-03) ─────────────────────────────
+
+
+def derive_confidence_tier(hypothesis: Hypothesis) -> str:
+    """Derive a confidence tier from the hypothesis's surviving citations.
+
+    The tier must come from the SOURCE EVIDENCE, not the model's self-reported
+    string (PRD §12). Call this only AFTER :func:`verify_citations` so we judge
+    the citations that actually resolved.
+
+    * ``kind="evidence"`` cited (openFDA FAERS, DDInter, Beers) → ``"high"``
+      (Tier 1: a direct external-evidence link).
+    * only ``kind="resource"`` cited (patient FHIR data, no external
+      corroboration) → ``"medium"`` (Tier 2: plausible but uncorroborated).
+    * no surviving citations at all → ``"low"`` (Tier 3: speculative).
+    """
+    if any(c.kind == "evidence" for c in hypothesis.citations):
+        return "high"
+    if any(c.kind == "resource" for c in hypothesis.citations):
+        return "medium"
+    return "low"
+
+
 # ── Top-level reasoning pipeline ───────────────────────────────────────────
 
 
@@ -507,6 +530,12 @@ async def run_reasoning(
 
     evidence_ids = {s.id for s in evidence}
     hypotheses = verify_citations(hypotheses, flattened_text, evidence_ids)
+
+    # REASON-03: override the model's self-reported confidence with a tier derived
+    # from the SURVIVING source citations (run after verification so we judge only
+    # citations that actually resolved). Never trust Gemini's raw confidence string.
+    for h in hypotheses:
+        h.confidence = derive_confidence_tier(h)
 
     # Deterministic output-language gate: drop any hypothesis whose prose asserts
     # causation or a prescriptive directive (don't trust the prompt alone).
