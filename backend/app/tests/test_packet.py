@@ -1,50 +1,62 @@
+from __future__ import annotations
+
+import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.dtos import Citation, DecisionPacket, Hypothesis
 from backend.app.main import app
 
 
-def test_packet_stub_returns_decision_packet():
-    client = TestClient(app)
-    response = client.get("/packet/pat-001")
+@pytest.fixture(autouse=True)
+def required_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_API_KEY", "PLACEHOLDER")
+    monkeypatch.setenv("OPENFDA_API_KEY", "PLACEHOLDER")
+    monkeypatch.setenv("DEV_TOKEN", "PLACEHOLDER")
+
+
+def _client() -> TestClient:
+    return TestClient(app)
+
+
+def _auth_headers() -> dict[str, str]:
+    return {"Authorization": "Bearer PLACEHOLDER"}
+
+
+def test_packet_endpoint_returns_cited_suggestions_and_cache_header() -> None:
+    response = _client().get("/patients/pat-001/packet", headers=_auth_headers())
+
     assert response.status_code == 200
+    assert response.headers["x-cache"] == "HIT"
     payload = response.json()
     assert payload["patient_id"] == "pat-001"
-    assert "summary_markdown" in payload
-    assert isinstance(payload["hypotheses"], list)
-    assert isinstance(payload["data_gaps"], list)
+    assert payload["hypotheses"]
+    assert payload["hypotheses"][0]["citations"]
 
 
-def test_packet_stub_hypothesis_has_citations():
-    client = TestClient(app)
-    response = client.get("/packet/pat-001")
-    payload = response.json()
-    h = payload["hypotheses"][0]
-    assert "id" in h
-    assert "title" in h
-    c = h["citations"][0]
-    assert "kind" in c
-    assert "ref" in c
+def test_patient_and_evidence_citations_resolve() -> None:
+    client = _client()
 
-
-def test_dtos_snapshot():
-    citation = Citation(kind="evidence_card", ref="rxnorm://1", label=None)
-    hypothesis = Hypothesis(
-        id="h-1",
-        title="t",
-        why="w",
-        severity="low",
-        confidence="high",
-        citations=[citation],
+    patient_response = client.get(
+        "/patients/pat-001/resource/Patient/pat-001",
+        headers=_auth_headers(),
     )
-    packet = DecisionPacket(
-        patient_id="p-1",
-        summary_markdown="## stub",
-        hypotheses=[hypothesis],
-        data_gaps=["missing labs"],
-        cache_status=None,
+    evidence_response = client.get(
+        "/evidence/openfda-label-amitriptyline",
+        headers=_auth_headers(),
     )
-    d = packet.model_dump()
-    assert d["patient_id"] == "p-1"
-    assert d["hypotheses"][0]["citations"][0]["ref"] == "rxnorm://1"
-    assert d["cache_status"] is None
+
+    assert patient_response.status_code == 200
+    assert patient_response.json()["id"] == "pat-001"
+    assert evidence_response.status_code == 200
+    assert evidence_response.json()["id"] == "openfda-label-amitriptyline"
+
+
+def test_list_patients_connectors_and_refresh() -> None:
+    client = _client()
+    patients = client.get("/patients", headers=_auth_headers())
+    connectors = client.get("/connectors", headers=_auth_headers())
+    refresh = client.post("/patients/pat-001/refresh", headers=_auth_headers())
+
+    assert patients.status_code == 200
+    assert connectors.status_code == 200
+    assert refresh.status_code == 200
+    assert refresh.headers["x-cache"] == "REFRESH"
