@@ -1,22 +1,28 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import { motion, type Variants } from "framer-motion"
 import { Inbox, Loader2, Sparkles } from "lucide-react"
 
 import { BackendPatientSelect } from "@/components/packet/BackendPatientSelect"
+import { CitationChip } from "@/components/packet/CitationChip"
 import { CompletenessIndicator } from "@/components/packet/CompletenessIndicator"
 import { DataGapsBanner } from "@/components/packet/DataGapsBanner"
+import { EvidenceDrawer } from "@/components/packet/EvidenceDrawer"
+import { HypothesisActions } from "@/components/packet/HypothesisActions"
 import { HypothesisCard } from "@/components/packet/HypothesisCard"
 import { PacketLoadFailurePanel } from "@/components/packet/PacketLoadFailurePanel"
 import { PacketSummary } from "@/components/packet/PacketSummary"
+import { useKeyboardReview } from "@/components/packet/useKeyboardReview"
 import {
   PacketLoadError,
+  useConfirmHypothesis,
+  useDismissHypothesis,
   usePacket,
   usePatients,
 } from "@/lib/api/hooks"
-import type { DecisionPacket } from "@/lib/api/types"
+import type { Citation, DecisionPacket, Hypothesis } from "@/lib/api/types"
 
 const pageVariants: Variants = {
   initial: { opacity: 0, y: 8 },
@@ -119,6 +125,7 @@ export default function PacketPage() {
       {/* Packet body */}
       {hasBackendPatient && (
         <PacketBody
+          patientId={activePatientId}
           loading={packetLoading}
           isError={packetIsError}
           error={packetError}
@@ -145,13 +152,21 @@ function EmptyBackend() {
 }
 
 interface PacketBodyProps {
+  /** Backend patient id — threaded down for confirm/dismiss + resource resolution. */
+  patientId: string
   loading: boolean
   isError: boolean
   error: PacketLoadError | null
   packet: DecisionPacket | undefined
 }
 
-function PacketBody({ loading, isError, error, packet }: PacketBodyProps) {
+function PacketBody({
+  patientId,
+  loading,
+  isError,
+  error,
+  packet,
+}: PacketBodyProps) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-bg-surface p-6 text-sm text-muted-foreground">
@@ -172,12 +187,69 @@ function PacketBody({ loading, isError, error, packet }: PacketBodyProps) {
     return <PacketLoadFailurePanel diag={diag} />
   }
 
+  // The success branch is delegated so that the drawer/keyboard/mutation hooks
+  // live in a component that is only mounted once the packet has resolved —
+  // PacketBody itself stays hook-free above its conditional returns.
+  return <PacketDifferential patientId={patientId} packet={packet} />
+}
+
+interface PacketDifferentialProps {
+  patientId: string
+  packet: DecisionPacket
+}
+
+/**
+ * The resolved differential: cited hypotheses with interactive citation chips
+ * + confirm/dismiss actions, a single shared evidence drawer, and keyboard
+ * review wiring. Mounted only when the packet has loaded.
+ */
+function PacketDifferential({ patientId, packet }: PacketDifferentialProps) {
   const completeness = packet.completeness ?? []
   const dataGaps = packet.data_gaps ?? []
   // INVARIANT: a hypothesis with zero resolvable citations must NOT be shown.
-  const hypotheses = (packet.hypotheses ?? []).filter(
-    (h) => Array.isArray(h.citations) && h.citations.length > 0,
+  const hypotheses = useMemo(
+    () =>
+      (packet.hypotheses ?? []).filter(
+        (h) => Array.isArray(h.citations) && h.citations.length > 0,
+      ),
+    [packet.hypotheses],
   )
+
+  // The single active citation drives the one shared EvidenceDrawer.
+  const [activeCitation, setActiveCitation] = useState<Citation | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  const openCitation = useCallback((citation: Citation) => {
+    setActiveCitation(citation)
+    setDrawerOpen(true)
+  }, [])
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    setDrawerOpen(open)
+    // Clear the resolved citation once the close animation has handed back.
+    if (!open) setActiveCitation(null)
+  }, [])
+
+  // Keyboard review fires its own mutation instances (the action buttons have
+  // theirs); both invalidate the same packet query on success.
+  const confirm = useConfirmHypothesis()
+  const dismiss = useDismissHypothesis()
+
+  const openPrimaryCitation = useCallback(
+    (hypothesis: Hypothesis) => {
+      const primary = hypothesis.citations?.[0]
+      if (primary) openCitation(primary)
+    },
+    [openCitation],
+  )
+
+  useKeyboardReview(hypotheses, {
+    onConfirm: (id) => confirm.mutate({ id, patientId }),
+    onDismiss: (id) => dismiss.mutate({ id, patientId }),
+    onOpenPrimaryCitation: openPrimaryCitation,
+    onCloseDrawer: () => handleOpenChange(false),
+    drawerOpen,
+  })
 
   return (
     <div className="space-y-5">
@@ -195,9 +267,12 @@ function PacketBody({ loading, isError, error, packet }: PacketBodyProps) {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         <section aria-label="Differential" className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Differential ({hypotheses.length})
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Differential ({hypotheses.length})
+            </h2>
+            {hypotheses.length > 0 && <KeyboardHint />}
+          </div>
           {hypotheses.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-bg-surface px-6 py-10 text-center text-sm text-[var(--text-secondary)]">
               No cited hypotheses to review. A claim without a resolvable
@@ -205,7 +280,23 @@ function PacketBody({ loading, isError, error, packet }: PacketBodyProps) {
             </div>
           ) : (
             hypotheses.map((hypothesis) => (
-              <HypothesisCard key={hypothesis.id} hypothesis={hypothesis} />
+              <HypothesisCard
+                key={hypothesis.id}
+                hypothesis={hypothesis}
+                citations={hypothesis.citations.map((citation, i) => (
+                  <CitationChip
+                    key={`${citation.kind}:${citation.ref}:${i}`}
+                    citation={citation}
+                    onOpen={openCitation}
+                  />
+                ))}
+                actions={
+                  <HypothesisActions
+                    hypothesis={hypothesis}
+                    patientId={patientId}
+                  />
+                }
+              />
             ))
           )}
         </section>
@@ -214,6 +305,34 @@ function PacketBody({ loading, isError, error, packet }: PacketBodyProps) {
           <CompletenessIndicator completeness={completeness} />
         </aside>
       </div>
+
+      {/* One shared drawer resolves whichever citation is active. */}
+      <EvidenceDrawer
+        citation={activeCitation}
+        patientId={patientId}
+        open={drawerOpen}
+        onOpenChange={handleOpenChange}
+      />
     </div>
+  )
+}
+
+/** Compact, non-intrusive hint listing the review keyboard shortcuts. */
+function KeyboardHint() {
+  return (
+    <p className="hidden items-center gap-1.5 text-[11px] text-[var(--text-muted)] sm:flex">
+      <Kbd>j</Kbd>
+      <Kbd>k</Kbd>
+      move ·<Kbd>c</Kbd>ack ·<Kbd>d</Kbd>dismiss ·<Kbd>↵</Kbd>cite ·
+      <Kbd>esc</Kbd>close
+    </p>
+  )
+}
+
+function Kbd({ children }: { children: ReactNode }) {
+  return (
+    <kbd className="rounded border border-border bg-bg-subtle px-1 py-0.5 font-mono text-[10px] text-[var(--text-secondary)]">
+      {children}
+    </kbd>
   )
 }
