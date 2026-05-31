@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.auth import require_dev_token
@@ -199,7 +199,7 @@ async def get_evidence(evidence_id: str) -> dict[str, object]:
 
 @audit_router.get("/audit")
 async def get_audit(
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> list[dict[str, object]]:
     """Read the immutable audit log, newest first (API-05)."""

@@ -652,6 +652,61 @@ class TestRunReasoning:
         assert hypotheses == []  # citation resolved, but "caused by" prose is dropped
 
     @pytest.mark.asyncio
+    async def test_medium_tier_override_resource_only(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """REASON-03 medium path end-to-end: Gemini self-reports some confidence,
+        but the surviving citations are resource-only (no external evidence) →
+        the final confidence is overridden to "medium" (Tier 2)."""
+        response_text = json.dumps(
+            {
+                "hypotheses": [
+                    {
+                        "title": "Lisinopril and dizziness",
+                        "why": "Patient on lisinopril is associated with reported dizziness.",
+                        "severity": "moderate",
+                        "confidence": "high",
+                        "citations": [
+                            {
+                                "kind": "resource",
+                                "ref": "MedicationStatement/ms-001",
+                                "label": "Lisinopril",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+        mock_response = MagicMock()
+        mock_response.text = response_text
+
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.return_value = mock_response
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
+
+        assert len(hypotheses) == 1
+        h = hypotheses[0]
+        assert len(h.citations) == 1
+        assert h.citations[0].kind == "resource"
+        # Model self-reported "high", but only a resource citation resolved → medium.
+        assert h.confidence == "medium"
+
+    @pytest.mark.asyncio
     async def test_abstention_on_gemini_api_error(
         self,
         sample_flattened_text: str,
