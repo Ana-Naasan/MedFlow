@@ -59,8 +59,11 @@ synthetic data generated for development purposes. No real patient data is used.
 ## sample_bundle.json
 
 - **What**: Synthetic FHIR R4 patient bundle — older adult male with cardiac/HTN
-  medications (aspirin, warfarin, metoprolol, lisinopril, furosemide, atorvastatin,
-  amlodipine, prasugrel, nitroglycerin). Trimmed to clinically-relevant resource types.
+  medications (aspirin, metoprolol, lisinopril, hydrochlorothiazide, amlodipine,
+  pravastatin, prasugrel, nitroglycerin). Trimmed to clinically-relevant resource types.
+  NOTE: the warfarin + aspirin planted interaction is NOT in this bundle — it lives in
+  `sample_clinical.pdf` and Beers rule `beers-2023-interaction-01`. This bundle's own
+  antiplatelet pairing for demo purposes is aspirin + prasugrel.
 - **Source**: Synthea synthetic patient generator — synthetichealth/synthea-sample-data
   GitHub repository.
   <https://github.com/synthetichealth/synthea-sample-data>
@@ -78,8 +81,9 @@ synthetic data generated for development purposes. No real patient data is used.
 - **What**: Synthetic discharge medication summary for a fictitious older adult male
   patient (Kent Romaguera, DOB 1940). Includes a planted warfarin + aspirin drug
   interaction alert referencing the AGS 2023 Beers Criteria.
-- **Source**: Generated synthetically by `backend/scripts/generate_sample_pdf.py`
-  using the `fpdf2` library. Based on the Synthea patient above.
+- **Source**: Generated synthetically with the `fpdf2` library, based on the Synthea
+  patient above. The one-off generator script is not committed; the PDF is vendored as a
+  frozen demo artifact (regenerate only if the planted-interaction text needs to change).
 - **Generated**: 2026-05-30
 - **Licence**: Synthetic data, no copyright. NOT real patient data.
 - **Purpose**: Demo input for issue #27 (PDF clinical connector). Text is
