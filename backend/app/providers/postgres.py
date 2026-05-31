@@ -33,6 +33,48 @@ _SYS_LOINC = "http://loinc.org"
 _SYS_SNOMED = "http://snomed.info/sct"
 _SYS_UCUM = "http://unitsofmeasure.org"
 
+# Valid R4B ObservationStatus value set.
+_OBSERVATION_STATUSES = frozenset(
+    {
+        "registered",
+        "preliminary",
+        "final",
+        "amended",
+        "corrected",
+        "cancelled",
+        "entered-in-error",
+        "unknown",
+    }
+)
+
+
+def _observation_status(raw: str | None) -> str:
+    """Coerce a source status into a valid R4B ObservationStatus.
+
+    Institution B overloads a single ``status_flag`` column across event classes
+    (RX uses ``active``/``stopped`` etc.), so a LAB row could carry a token that
+    is not an ObservationStatus — fhir.resources does not enforce the value set,
+    so map it explicitly here, defaulting unknown tokens to ``final``.
+    """
+    status = (raw or "final").strip().lower()
+    return status if status in _OBSERVATION_STATUSES else "final"
+
+
+def _value_quantity(value: float, unit: str | None) -> dict:
+    """Build a valid R4B ``valueQuantity``.
+
+    UCUM ``system``/``code`` are attached ONLY when a unit is present: a populated
+    ``system`` alongside an empty ``code`` (the missing-unit case) fails R4B
+    Quantity validation (``code`` is a non-empty primitive).
+    """
+    quantity: dict = {"value": float(value)}
+    if unit:
+        quantity["unit"] = unit
+        quantity["system"] = _SYS_UCUM
+        quantity["code"] = unit
+    return quantity
+
+
 # ── Institution A translation (EMR-style, separate tables) ────────────────────
 
 
@@ -104,7 +146,7 @@ def _translate_a(
         entry: dict = {
             "resourceType": "Observation",
             "id": lab["result_id"],
-            "status": lab.get("status", "final"),
+            "status": _observation_status(lab.get("status")),
             "subject": {"reference": f"Patient/{pid}"},
             "code": {
                 "coding": [
@@ -117,12 +159,7 @@ def _translate_a(
             },
         }
         if lab.get("value") is not None:
-            entry["valueQuantity"] = {
-                "value": float(lab["value"]),
-                "unit": lab.get("unit", ""),
-                "system": _SYS_UCUM,
-                "code": lab.get("unit", ""),
-            }
+            entry["valueQuantity"] = _value_quantity(lab["value"], lab.get("unit"))
         resources.append(entry)
 
     for al in related.get("allergies", []):
@@ -243,7 +280,7 @@ def _translate_b(
             entry: dict = {
                 "resourceType": "Observation",
                 "id": eid,
-                "status": ev.get("status_flag", "final"),
+                "status": _observation_status(ev.get("status_flag")),
                 "subject": {"reference": f"Patient/{pid}"},
                 "code": {
                     "coding": [
@@ -256,12 +293,7 @@ def _translate_b(
                 },
             }
             if ev.get("num_value") is not None:
-                entry["valueQuantity"] = {
-                    "value": float(ev["num_value"]),
-                    "unit": ev.get("unit_val", ""),
-                    "system": _SYS_UCUM,
-                    "code": ev.get("unit_val", ""),
-                }
+                entry["valueQuantity"] = _value_quantity(ev["num_value"], ev.get("unit_val"))
             resources.append(entry)
 
         elif cls == "ALLERGY":

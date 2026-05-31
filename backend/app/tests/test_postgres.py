@@ -18,8 +18,10 @@ from backend.app.providers.postgres import (
     PostgresProvider,
     _fetch_raw_a,
     _fetch_raw_b,
+    _observation_status,
     _translate_a,
     _translate_b,
+    _value_quantity,
 )
 
 # ── shared test data ──────────────────────────────────────────────────────────
@@ -700,3 +702,46 @@ def test_get_pool_creates_asyncpg_pool_lazily():
     pool2 = asyncio.run(provider._get_pool())
     assert pool2 is fake_pool
     assert fake_asyncpg.create_pool.await_count == 1
+
+
+# ── mapper helpers: valid-R4B value/status (review fix-forward) ───────────────
+
+
+class TestMapperHelpers:
+    def test_value_quantity_with_unit_sets_ucum(self) -> None:
+        vq = _value_quantity(5.0, "mg/dL")
+        assert vq == {
+            "value": 5.0,
+            "unit": "mg/dL",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg/dL",
+        }
+
+    def test_value_quantity_without_unit_omits_system_and_code(self) -> None:
+        # Missing unit must NOT emit code:'' alongside a populated system (invalid R4B).
+        vq = _value_quantity(5.0, None)
+        assert vq == {"value": 5.0}
+        assert "system" not in vq and "code" not in vq
+        assert _value_quantity(7.0, "") == {"value": 7.0}
+
+    def test_value_quantity_no_unit_passes_r4b_validation(self) -> None:
+        from fhir.resources.R4B.observation import Observation
+
+        obs = {
+            "resourceType": "Observation",
+            "id": "o1",
+            "status": "final",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "x"}]},
+            "valueQuantity": _value_quantity(5.0, None),
+        }
+        # Would raise if valueQuantity carried code:'' with a populated system.
+        assert Observation.model_validate(obs).valueQuantity.value == 5.0
+
+    def test_observation_status_passthrough_and_coercion(self) -> None:
+        assert _observation_status("final") == "final"
+        assert _observation_status("amended") == "amended"
+        assert _observation_status(None) == "final"
+        # Institution B's overloaded status_flag (e.g. an RX 'active') is not a
+        # valid ObservationStatus → coerce to 'final'.
+        assert _observation_status("active") == "final"
+        assert _observation_status("STOPPED") == "final"
