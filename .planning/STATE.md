@@ -17,9 +17,10 @@ Progress (Phase 1 / M0): [█████████░] ~92%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
-### Open PRs / In Review
+### Open PRs / In Review (reviewed, NOT merged — paused for Bader's decision)
 
-_None — queue clear._
+- **#55 (#12 cache, ha/issue-12, Hamza)** — "added database caching", THE REAL Postgres cache. **Must reconcile with #51's in-memory stand-in `cache/store.py`** before merge (don't double-build), and the CI gate now requires `app/cache` at 100% coverage. Review carefully.
+- **#56 (#14 openFDA drug-safety, feat/drug-safety-openfda-14)** — reasoning/knowledge runtime; gate requires `app/knowledge`+`app/reasoning` at 100%.
 
 ### Done (on `planning`, green)
 
@@ -28,7 +29,10 @@ _None — queue clear._
 - #3 Provider ABC — registry + FetchResult/Provenance/HealthStatus + ConnectorError + coverage contract (11 tests). The fan-out unblocker.
 - #4 DTO/OpenAPI contract — Citation/Hypothesis/DecisionPacket DTOs + `/packet` stub + regenerated typed client (PR #45). Frontend can now build against the typed client.
 - #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
-- #9 (partial) — required-secret config guard + `.env` placeholders merged (PR #46). #9 stays OPEN until real Gemini/openFDA keys are provisioned in local `.env`.
+- #9 config + docker — required-secret config guard + `.env` placeholders (PR #46) AND the docker-compose backend service wired in (PR #54, issue #9 CLOSED). Real Gemini/openFDA keys still go in local `.env` to exercise the runtime.
+- #17 packet API (PR #51) — `/patients`, `/packet` (X-Cache:HIT), citation-resolution (`/resource/...`, `/evidence/...`), `/refresh`, `/connectors`, HTTPBearer dev-auth, CORS; in-memory `cache/store.py` stand-in (replaced by #12/#55). Black fix pushed to Hamza's branch (7106c63) with his OK.
+- #5/#6/#28/#21-followup — FHIR subset+minimize (#48), flattener (#52), HL7v2 scaffold (#50), seed-data RxCUI corrections (#53).
+- **Core 100% coverage + gate (PR #57)** — `test_coverage_branches.py` (27 branch tests) → `fhir/providers/cache/knowledge/reasoning` at 100%; dead `fhir/flattener.py` deleted; CI `--cov-fail-under=100` on those packages. Verify coverage on **Python 3.12** only (local 3.9 gives a false ~13%; the project uses `UTC`/`slots`).
 - #21 seed data — DDInter (10k interaction pairs), ACB scale, AGS 2023 Beers, Synthea sample FHIR bundle + text-layer clinical PDF vendored to `backend/app/seeds/` with provenance (SOURCES.md) + typed loaders + 26 tests (PR #47). Synthetic data only.
 - #5 FHIR subset — `fhir/subset.py` (6 validated R4B builders via `fhir.resources.R4B.*` killing the R5-default gotcha + `reasoning_view` SEC-02 minimization: strips name/address/telecom/contact, drops birthDate→`ageYears`, keeps MRN-only identifiers, recursive incl. contained, non-mutating) + `fhir/references.py` (`urn:uuid:`→`ResourceType/id`, non-mutating) + 26 tests (PR #48). Full suite green. Unblocks #6, #11.
 - #6 flattener (FHIR-03/04) — `fhir/flatten.py` `flatten_to_tagged_text`: deterministic (fixed category order, NKA-aware), every category always rendered (present / `(stated as none by source)` / `(not documented)`), every clinical line tagged `[ResourceType/id]`, never emits raw FHIR JSON. + 190 lines of tests (PR #52). Closes the citation-tagged-context gap; feeds the Phase 2 reasoning core.
