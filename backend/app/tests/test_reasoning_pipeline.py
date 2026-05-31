@@ -8,6 +8,7 @@ run_reasoning is mocked here — its internals are covered by test_reasoning_cor
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -126,6 +127,24 @@ async def test_falls_back_to_scaffold_when_api_key_missing(
     # _get_client raises KeyError outside run_reasoning's try/except when the key
     # is unset; the orchestrator must treat that as abstention, not a crash.
     packet = await _call(monkeypatch, AsyncMock(side_effect=KeyError("GOOGLE_GENAI_API_KEY")))
+    assert packet.summary_markdown == "STATIC SUMMARY"
+    assert [h.id for h in packet.hypotheses] == ["static-1"]
+
+
+@pytest.mark.asyncio
+async def test_falls_back_to_scaffold_when_reasoning_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # #90: the live Gemini call runs in /packet's request path. A slow/hung call
+    # (cold ~10-20s per PRD, or worse) must NOT block the page until it gives up
+    # ("Failed to load packet"). The orchestrator bounds reasoning and abstains to
+    # the citation-safe scaffold once REASONING_TIMEOUT_SECONDS is exceeded.
+    async def _slow(*_args: object, **_kwargs: object) -> list:
+        await asyncio.sleep(0.5)
+        return [_reasoned_hypothesis()]
+
+    monkeypatch.setattr(pipeline, "REASONING_TIMEOUT_SECONDS", 0.01)
+    packet = await _call(monkeypatch, _slow)
     assert packet.summary_markdown == "STATIC SUMMARY"
     assert [h.id for h in packet.hypotheses] == ["static-1"]
 
