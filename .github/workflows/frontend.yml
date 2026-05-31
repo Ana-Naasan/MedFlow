@@ -17,13 +17,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # NOTE: setup-node's built-in `cache: npm` is intentionally NOT enabled
-      # yet — it fails the job until the scaffold (#2) adds frontend/package-lock.json
-      # to hash. Re-enable with `cache: npm` + `cache-dependency-path:
-      # frontend/package-lock.json` in the scaffold PR.
-      - uses: actions/setup-node@v4
+      # npm caching turns on automatically once the scaffold (#2) adds
+      # frontend/package-lock.json. Until that file exists, setup-node's built-in
+      # cache would fail the run (nothing to hash), so we pick the variant by
+      # whether the lockfile is present.
+      - name: Set up Node (no cache until package-lock.json exists)
+        if: hashFiles('frontend/package-lock.json') == ''
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Set up Node (with npm cache)
+        if: hashFiles('frontend/package-lock.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Lint, typecheck, test & build
         run: |
