@@ -132,3 +132,57 @@ def test_list_patients_connectors_and_refresh() -> None:
     assert connectors.status_code == 200
     assert refresh.status_code == 200
     assert refresh.headers["x-cache"] == "REFRESH"
+
+
+def test_audit_endpoint_returns_logged_events() -> None:
+    with TestClient(app) as client:
+        # A packet fetch writes a "resource_read" audit row for the DecisionPacket.
+        packet = client.get("/patients/pat-001/packet", headers=_auth_headers())
+        assert packet.status_code == 200
+
+        audit = client.get("/audit", headers=_auth_headers())
+
+    assert audit.status_code == 200
+    events = audit.json()
+    assert isinstance(events, list)
+    assert len(events) >= 1
+    first = events[0]
+    assert set(first) == {
+        "id",
+        "event_type",
+        "patient_id",
+        "resource_ref",
+        "actor",
+        "occurred_at",
+    }
+    refs = {e["resource_ref"] for e in events}
+    assert "DecisionPacket/pat-001" in refs
+
+
+def test_audit_endpoint_requires_auth() -> None:
+    with TestClient(app) as client:
+        resp = client.get("/audit")
+    assert resp.status_code == 401
+
+
+def test_audit_endpoint_accepts_valid_limit() -> None:
+    with TestClient(app) as client:
+        packet = client.get("/patients/pat-001/packet", headers=_auth_headers())
+        assert packet.status_code == 200
+
+        audit = client.get("/audit?limit=10", headers=_auth_headers())
+
+    assert audit.status_code == 200
+    events = audit.json()
+    assert isinstance(events, list)
+    assert len(events) <= 10
+
+
+@pytest.mark.parametrize("limit", [-1, 0, 99999])
+def test_audit_endpoint_rejects_out_of_range_limit(limit: int) -> None:
+    # Query(ge=1, le=200) rejects out-of-range values at the boundary (422)
+    # before they reach SQL — a negative SQLite LIMIT means UNLIMITED, and a
+    # huge limit causes an unbounded fetch; both must be blocked.
+    with TestClient(app) as client:
+        resp = client.get(f"/audit?limit={limit}", headers=_auth_headers())
+    assert resp.status_code == 422

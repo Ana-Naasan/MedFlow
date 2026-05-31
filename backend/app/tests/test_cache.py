@@ -672,3 +672,59 @@ def test_upsert_hypothesis_update_branch():
     updated = asyncio.run(run())
     assert updated.title == "Updated title"
     assert updated.group == "grp-b"
+
+
+# ---------------------------------------------------------------------------
+# list_audit_events — newest first, capped by limit (API-05)
+# ---------------------------------------------------------------------------
+
+
+def test_list_audit_events_orders_by_timestamp_desc():
+    async def run():
+        engine, factory = await _make_session()
+        async with factory() as sess:
+            base = datetime.now(UTC)
+            for i in range(3):
+                event = AuditEvent(
+                    id=f"ev-{i}",
+                    event_type="resource_read",
+                    patient_id="p1",
+                    resource_ref=f"Condition/c{i}",
+                    actor="u",
+                    occurred_at=base + timedelta(seconds=i),
+                )
+                sess.add(event)
+            await sess.flush()
+
+            events = await repo.list_audit_events(sess)
+        await engine.dispose()
+        return events
+
+    events = asyncio.run(run())
+    # Newest (largest occurred_at) first.
+    assert [e.id for e in events] == ["ev-2", "ev-1", "ev-0"]
+
+
+def test_list_audit_events_respects_limit():
+    async def run():
+        engine, factory = await _make_session()
+        async with factory() as sess:
+            base = datetime.now(UTC)
+            for i in range(5):
+                sess.add(
+                    AuditEvent(
+                        id=f"ev-{i}",
+                        event_type="resource_read",
+                        patient_id="p1",
+                        resource_ref=f"Condition/c{i}",
+                        actor="u",
+                        occurred_at=base + timedelta(seconds=i),
+                    )
+                )
+            await sess.flush()
+            events = await repo.list_audit_events(sess, limit=2)
+        await engine.dispose()
+        return events
+
+    events = asyncio.run(run())
+    assert [e.id for e in events] == ["ev-4", "ev-3"]
