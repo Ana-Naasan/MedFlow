@@ -615,3 +615,60 @@ def test_single_refresh_under_concurrent_reads(monkeypatch):
         await engine.dispose()
 
     asyncio.run(run())
+
+
+# ---------------------------------------------------------------------------
+# list_patient_ids_from_db returns distinct ids
+# ---------------------------------------------------------------------------
+
+
+def test_list_patient_ids_from_db_returns_distinct_ids():
+    async def run():
+        engine, factory = await _make_session()
+        async with factory() as sess:
+            for rid, pid in [("r1", "p-a"), ("r2", "p-a"), ("r3", "p-b")]:
+                await repo.upsert_resource(
+                    sess,
+                    patient_id=pid,
+                    resource_type="Condition",
+                    resource_id=rid,
+                    body={},
+                    source_provider="mock",
+                )
+            ids = await repo.list_patient_ids_from_db(sess)
+        await engine.dispose()
+        return ids
+
+    ids = asyncio.run(run())
+    assert sorted(ids) == ["p-a", "p-b"]
+
+
+# ---------------------------------------------------------------------------
+# upsert_hypothesis update branch (row already exists)
+# ---------------------------------------------------------------------------
+
+
+def test_upsert_hypothesis_update_branch():
+    async def run():
+        engine, factory = await _make_session()
+        async with factory() as sess:
+            await repo.upsert_hypothesis(
+                sess,
+                id="hyp-upd",
+                patient_id="pat-upd",
+                title="Original title",
+                group="grp-a",
+            )
+            updated = await repo.upsert_hypothesis(
+                sess,
+                id="hyp-upd",
+                patient_id="pat-upd",
+                title="Updated title",
+                group="grp-b",
+            )
+        await engine.dispose()
+        return updated
+
+    updated = asyncio.run(run())
+    assert updated.title == "Updated title"
+    assert updated.group == "grp-b"

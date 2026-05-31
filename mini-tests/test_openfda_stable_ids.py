@@ -54,7 +54,7 @@ async def main(query: str) -> None:
     if ids_1 == ids_2:
         print(f"\n✅ Stable IDs match across calls ({len(ids_1)} unique IDs)")
     else:
-        print(f"\n❌ IDs differ!")
+        print("\n❌ IDs differ!")
         print(f"  Only in call 1: {ids_1 - ids_2}")
         print(f"  Only in call 2: {ids_2 - ids_1}")
 

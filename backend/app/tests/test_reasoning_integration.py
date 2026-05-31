@@ -81,8 +81,9 @@ class TestGoldenPath:
                     {
                         "title": "Metformin gastrointestinal side effects",
                         "why": (
-                            "The patient is prescribed Metformin (MedicationStatement/med-001) "
-                            "for Type 2 diabetes mellitus (Condition/cond-001). "
+                            "The patient is prescribed warfarin "
+                            "(MedicationStatement/med-DEMO-001-warfarin) "
+                            "for atrial fibrillation (Condition/cond-DEMO-001-afib). "
                             "OpenFDA adverse-event data lists nausea, diarrhoea, and vomiting "
                             "as the most-reported reactions for metformin. "
                             "These align with known gastrointestinal side effects of metformin."
@@ -92,13 +93,13 @@ class TestGoldenPath:
                         "citations": [
                             {
                                 "kind": "resource",
-                                "ref": "MedicationStatement/med-001",
-                                "label": "Metformin prescription",
+                                "ref": "MedicationStatement/med-DEMO-001-warfarin",
+                                "label": "Warfarin prescription",
                             },
                             {
                                 "kind": "resource",
-                                "ref": "Condition/cond-001",
-                                "label": "Type 2 diabetes diagnosis",
+                                "ref": "Condition/cond-DEMO-001-afib",
+                                "label": "Atrial fibrillation diagnosis",
                             },
                             {
                                 "kind": "evidence",
@@ -124,8 +125,8 @@ class TestGoldenPath:
                         "citations": [
                             {
                                 "kind": "resource",
-                                "ref": "MedicationStatement/med-001",
-                                "label": "Metformin prescription",
+                                "ref": "MedicationStatement/med-DEMO-001-warfarin",
+                                "label": "Warfarin prescription",
                             },
                             {
                                 "kind": "evidence",
@@ -186,8 +187,8 @@ class TestGoldenPath:
                         "citations": [
                             {
                                 "kind": "resource",
-                                "ref": "MedicationStatement/med-001",
-                                "label": "Metformin",
+                                "ref": "MedicationStatement/med-DEMO-001-warfarin",
+                                "label": "Warfarin prescription",
                             },
                             {
                                 "kind": "evidence",
@@ -232,11 +233,11 @@ class TestGoldenPath:
         demo_flattened_text: str,
     ) -> None:
         """Sanity check: the demo patient flattened text has the expected tags."""
-        assert "[MedicationStatement/med-001]" in demo_flattened_text
-        assert "[Condition/cond-001]" in demo_flattened_text
-        assert "[Observation/obs-001]" in demo_flattened_text
-        assert "[AllergyIntolerance/allergy-001]" in demo_flattened_text
-        assert "[Procedure/proc-001]" in demo_flattened_text
+        assert "[MedicationStatement/med-DEMO-001-warfarin]" in demo_flattened_text
+        assert "[Condition/cond-DEMO-001-afib]" in demo_flattened_text
+        assert "[Observation/obs-DEMO-001-inr]" in demo_flattened_text
+        assert "[AllergyIntolerance/allergy-DEMO-001-penicillin]" in demo_flattened_text
+        assert "[Procedure/proc-DEMO-001-echo]" in demo_flattened_text
 
     @pytest.mark.asyncio
     async def test_demo_evidence_has_expected_ids(

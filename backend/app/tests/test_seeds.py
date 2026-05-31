@@ -151,3 +151,135 @@ class TestSampleBundleLoads:
         ]
         combined = " ".join(med_names)
         assert "warfarin" in combined or "aspirin" in combined
+
+
+class TestDemoPatientSnapshots:
+    """Golden tests for the DEMO-001 and DEMO-002 FHIR snapshot bundles."""
+
+    SEEDS_DIR = Path(__file__).parent.parent / "seeds"
+
+    def _load(self, filename: str) -> dict:
+        import json
+
+        return json.loads((self.SEEDS_DIR / filename).read_text())
+
+    # ── file presence ────────────────────────────────────────────────────────
+
+    def test_demo_001_snapshot_present(self) -> None:
+        assert (self.SEEDS_DIR / "mock_fhir_snapshot.json").exists()
+
+    def test_demo_002_snapshot_present(self) -> None:
+        assert (self.SEEDS_DIR / "DEMO-002_fhir_snapshot.json").exists()
+
+    # ── DEMO-001 bundle structure ────────────────────────────────────────────
+
+    def test_demo_001_is_bundle(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        assert bundle["resourceType"] == "Bundle"
+
+    def test_demo_001_has_patient(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        patients = [
+            e["resource"] for e in bundle["entry"] if e["resource"]["resourceType"] == "Patient"
+        ]
+        assert len(patients) == 1
+        p = patients[0]
+        assert p["id"] == "DEMO-001"
+        assert p["gender"] == "female"
+        assert p["birthDate"] < "1950-01-01", "Patient must be elderly (born before 1950)"
+
+    def test_demo_001_has_three_medications(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        meds = [
+            e["resource"]
+            for e in bundle["entry"]
+            if e["resource"]["resourceType"] == "MedicationStatement"
+        ]
+        assert len(meds) >= 3
+
+    def test_demo_001_warfarin_rxcui_present(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        rxcuis = {
+            coding["code"]
+            for e in bundle["entry"]
+            for coding in e["resource"].get("medicationCodeableConcept", {}).get("coding", [])
+        }
+        assert "11289" in rxcuis, "Warfarin RxCUI 11289 must be present"
+
+    def test_demo_001_aspirin_rxcui_present(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        rxcuis = {
+            coding["code"]
+            for e in bundle["entry"]
+            for coding in e["resource"].get("medicationCodeableConcept", {}).get("coding", [])
+        }
+        assert "1191" in rxcuis, "Aspirin RxCUI 1191 must be present"
+
+    def test_demo_001_amitriptyline_rxcui_present(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        rxcuis = {
+            coding["code"]
+            for e in bundle["entry"]
+            for coding in e["resource"].get("medicationCodeableConcept", {}).get("coding", [])
+        }
+        assert "703" in rxcuis, "Amitriptyline RxCUI 703 must be present"
+
+    def test_demo_001_medications_have_dated_start(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        meds = [
+            e["resource"]
+            for e in bundle["entry"]
+            if e["resource"]["resourceType"] == "MedicationStatement"
+        ]
+        dated = [m for m in meds if m.get("effectivePeriod", {}).get("start")]
+        assert len(dated) >= 3, "All medications must have effectivePeriod.start"
+
+    def test_demo_001_has_observation(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        obs = [
+            e["resource"] for e in bundle["entry"] if e["resource"]["resourceType"] == "Observation"
+        ]
+        assert len(obs) >= 1
+
+    def test_demo_001_has_allergy(self) -> None:
+        bundle = self._load("mock_fhir_snapshot.json")
+        allergies = [
+            e["resource"]
+            for e in bundle["entry"]
+            if e["resource"]["resourceType"] == "AllergyIntolerance"
+        ]
+        assert len(allergies) >= 1
+
+    # ── DEMO-002 bundle structure ────────────────────────────────────────────
+
+    def test_demo_002_is_bundle(self) -> None:
+        bundle = self._load("DEMO-002_fhir_snapshot.json")
+        assert bundle["resourceType"] == "Bundle"
+
+    def test_demo_002_has_patient(self) -> None:
+        bundle = self._load("DEMO-002_fhir_snapshot.json")
+        patients = [
+            e["resource"] for e in bundle["entry"] if e["resource"]["resourceType"] == "Patient"
+        ]
+        assert len(patients) == 1
+        assert patients[0]["id"] == "DEMO-002"
+        assert patients[0]["gender"] == "male"
+
+    def test_demo_002_has_nsaid(self) -> None:
+        """DEMO-002 must include ibuprofen (the NSAID for triple-whammy AKI risk)."""
+        bundle = self._load("DEMO-002_fhir_snapshot.json")
+        rxcuis = {
+            coding["code"]
+            for e in bundle["entry"]
+            for coding in e["resource"].get("medicationCodeableConcept", {}).get("coding", [])
+        }
+        assert "5640" in rxcuis, "Ibuprofen RxCUI 5640 must be present in DEMO-002"
+
+    def test_demo_002_has_ace_inhibitor(self) -> None:
+        bundle = self._load("DEMO-002_fhir_snapshot.json")
+        rxcuis = {
+            coding["code"]
+            for e in bundle["entry"]
+            for coding in e["resource"].get("medicationCodeableConcept", {}).get("coding", [])
+        }
+        assert "29046" in rxcuis, "Lisinopril RxCUI 29046 must be present in DEMO-002"
