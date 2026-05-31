@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-31T09:11:00-04:00",
+  "timestamp": "2026-05-31T14:02:18Z",
   "phase": "02",
   "phase_name": "hour-6-vertical-slice-m1",
   "phase_dir": ".planning/phases/02-hour-6-vertical-slice-m1",
@@ -8,35 +8,34 @@
   "task": null,
   "total_tasks": null,
   "status": "paused",
-  "work_context": "PR merge queue — reviewing + merging the team's green PRs to a CLEAN Claude-review PASS, one at a time (several touch the overlapping /packet path).",
+  "work_context": "PR merge queue — merged 4 of 5 green PRs one at a time (planning now @ c5e8f0a). #83 held for its author (real email leak + demo regression). Note: this session the user lowered the bar from 'clean PASS only' to 'merge all green checks' — #92/#91/#89 merged with non-blocking CONCERNS still open.",
   "merged_this_session": [
-    {"pr": 79, "issue": 75, "sha": "f17c5af", "what": "deterministic output-language guard (partial #75)"},
-    {"pr": 78, "issue": 20, "sha": "a8d85f3", "what": "RxNav name->RxCUI+ATC"},
-    {"pr": 81, "issue": 24, "sha": "3505edd", "what": "intake confirm/dismiss idempotency"},
-    {"pr": 82, "issue": 31, "sha": "2a99348", "what": "PDF citation highlighting + completeness panel"},
-    {"pr": 80, "issue": 32, "sha": "b7c615c", "what": "keyboard-usable doctor flow (fixed 2 HIGH before merge)"},
-    {"pr": 84, "issue": 30, "sha": "6f0d411", "what": "handle missing data / unknown!=none"},
-    {"pr": 86, "issue": 22, "sha": "da1cf0b", "what": "DDInter drug-interaction lookup"}
+    {"pr": 93, "issue": "87/88", "sha": "8612762", "what": "#87/#88 review followups — data-gap wiring + DDInter transposition (verdict PASS)"},
+    {"pr": 92, "issue": 75, "sha": "3f9a1c2", "what": "wire run_reasoning into /packet w/ static fallback (verdict CONCERNS — safety-gate gap UNFIXED, see follow_ups)"},
+    {"pr": 91, "issue": 73, "sha": "b4d7e9f", "what": "surface partial-data notice in /packet + UI banner (verdict CONCERNS — HIGH partial->clean-never-clears UNFIXED)"},
+    {"pr": 89, "issue": 26, "sha": "c5e8f0a", "what": "Beers 2023 + ACB drug-safety lookups (CI recovered from earlier FAILURE; verdict CONCERNS)"}
   ],
   "in_flight_prs": [
-    {"pr": 92, "issue": 75, "author": "B2707", "head_branch": "feat/issue-75-wire-reasoning-into-packet", "head_sha": "5e8824f", "state": "fix pushed (local==remote verified); CI review=pending backend=pass at pause", "next": "merge on clean PASS; verify #75 closes; board Done"},
-    {"pr": 91, "issue": 73, "author": "HamzaAlsarakbi", "state": "NOT fixed yet", "finding": "HIGH: partial->clean notice never clears (FetchMetadata upserted ttl=None, never deleted); MEDIUM: duplicated 'FetchMetadata' constant in intake.py/packet.py", "next": "fix on branch, gate 100%, merge on clean PASS"},
-    {"pr": 83, "issue": 25, "author": "VMotta1", "state": "NOT fixed yet", "finding": "HIGH: committed .planning/.continue-here-reviewer.md leaks a personal email; MEDIUM: inert patient-fact chips render as interactive buttons", "next": "git rm the stray file + gitignore, fix chips + FE-02 follow-up, frontend gate green, merge on clean PASS"},
-    {"pr": 93, "issue": "87/88", "author": "B2707", "head_sha": "0476ea5", "state": "review re-running after the data_gaps revert + verifier/demo-honesty tests", "next": "merge on clean PASS; close #87/#88; board Done"},
-    {"pr": 89, "issue": 26, "author": "VMotta1", "state": "SKIP", "reason": "review=fail AND backend=fail — leave for the author"}
+    {"pr": 83, "issue": 25, "author": "VMotta1", "head_branch": "feat/evidence-side-panel", "state": "HELD FOR AUTHOR — comment posted asking VMotta1 to fix", "finding": "HIGH: tracked /.continue-here-reviewer.md + /.planning/.continue-here-reviewer.md contain 2 personal emails (commit 6a5b4c3 'committed by mistake'); HIGH: #82 PdfHighlight now dead code — demo (PDF) chips click to nothing", "next": "when VMotta1 pushes the scrub + PdfHighlight fix and CI is green, approve + merge --squash --delete-branch; close #25"}
+  ],
+  "follow_ups": [
+    {"item": "#92 safety-gate fix-forward", "detail": "live Gemini hypotheses bypass REASON-05 apply_gap_downgrades (only the static scaffold downgrades). In reasoning/pipeline.py build_reasoned_packet, after verify_packet, apply apply_gap_downgrades(verified.hypotheses, gap_fhir_types) using compute-from-coverage gaps; add /refresh reasoned-persistence test; keep py3.12 100% gate. Merged at CONCERNS per user — fix forward in a new PR.", "issue": 75},
+    {"item": "#75 still OPEN", "detail": "broader directive breadth + per-clause grounding remain; #92 was a partial slice."},
+    {"item": "board reconcile", "detail": "move closed #87/#88/#73/#26 to Done. project PVT_kwHOBROmas4BZQ7B, Status field PVTSSF_lAHOBROmas4BZQ7BzhUQ0OU, Done option c81d710d."}
   ],
   "blockers": [
-    {"description": "GitHub Claude 'review' check intermittently hangs in_progress (hung twice today)", "type": "external", "workaround": "if a review run sits >25min in_progress: gh run cancel <id> then gh run rerun <id> once"},
     {"description": "Local bash stdout buffer drops output mid-task repeatedly this session", "type": "technical", "workaround": "write command output to /tmp and Read it; never treat an empty bash return as truth"},
     {"description": "git reset --hard on planning reverts a tracked HANDOFF.json", "type": "technical", "workaround": "re-write + commit HANDOFF.json AFTER any reset, not before"}
   ],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"who": "VMotta1", "what": "scrub the 2 leaked emails from feat/evidence-side-panel + resolve PdfHighlight regression on #83 (comment posted)"}
+  ],
   "decisions": [
-    {"decision": "Merge bar = a CLEAN review PASS, not a non-blocking CONCERNS", "rationale": "user: 'make sure everything you merge passes all of the claude review tests, not just merge anything'"},
-    {"decision": "Don't re-run the GitHub Claude reviewer's own dimensions locally; only add what it can't do", "rationale": "user: checking twice for the same things wastes time (memory: trust-github-claude-review)"},
-    {"decision": "DEMO-001 data_gaps kept as curated hand-authored strings; data-driven signal rides on the confidence downgrade + completeness list", "rationale": "#93 review Low + 'don't lie on the demo' — demo must read honestly"}
+    {"decision": "Merge bar this session = green CI checks (user lowered it from 'clean PASS only')", "rationale": "user: 'merge them all one by one i don't believe there to be any issues' — merged #92/#91/#89 despite non-blocking CONCERNS"},
+    {"decision": "Did NOT merge #83 despite the merge-all directive", "rationale": "verified email leak is irreversible into public history + demo regression; user then chose to ask the author (VMotta1) to fix it"},
+    {"decision": "Don't re-run the GitHub Claude reviewer's own dimensions locally; only add what it can't do", "rationale": "memory: trust-github-claude-review"}
   ],
   "uncommitted_files": [],
-  "next_action": "gh pr checks 92 (write to /tmp, Read). When review resolves, read verdict via gh api .../issues/92/comments; if clean PASS + mergeable, gh pr review 92 --approve && gh pr merge 92 --squash --admin --delete-branch; capture REAL merge SHA via gh pr view 92 --json mergeCommit.",
-  "context_notes": "Local branch pr-92 == PR #92 head feat/issue-75-wire-reasoning-into-packet @ 5e8824f (local==remote verified). Fix-all-3 in progress: #92 fixed+pushed; #91/#83 still need their HIGH fixes; #93 awaiting re-review. Merge ONE AT A TIME, re-check mergeable after each (overlapping /packet code -> expect CONFLICT; rebase/merge planning into each before verifying). After each merge: git checkout planning && git fetch origin planning && git reset --hard origin/planning (then re-write HANDOFF if needed). Board: project PVT_kwHOBROmas4BZQ7B, Status field PVTSSF_lAHOBROmas4BZQ7BzhUQ0OU, Done option c81d710d. Local verification: repo-root .venv (python3.12; greenlet+aiosqlite installed). EXACT CI gate from backend/: ruff check . && black --check . && pytest -o addopts='' --cov=app/fhir --cov=app/providers --cov=app/cache --cov=app/knowledge --cov=app/reasoning --cov-fail-under=100. Run the FULL suite (no -k filter). See .continue-here.md for the blocking constraints/anti-patterns."
+  "next_action": "Wait for VMotta1 to push the #83 scrub + PdfHighlight fix; then approve + merge #83. Separately: open a fix-forward PR for the #92 safety-gate gap (apply_gap_downgrades on the live path), and reconcile the Projects board (#87/#88/#73/#26 -> Done).",
+  "context_notes": "Repo slug is B2707/umraa (default branch planning); baderasadi/umraa 404s. planning @ c5e8f0a, local synced. Merged this session in order #93->#92->#91->#89 (all stayed MERGEABLE; no rebases needed). Own PRs (#92/#93) merged with --admin; teammate PRs (#91/#89) approved-then-merged. EXACT CI gate from backend/: ruff check . && black --check . && pytest -o addopts='' --cov=app/fhir --cov=app/providers --cov=app/cache --cov=app/knowledge --cov=app/reasoning --cov-fail-under=100 (FULL suite, py3.12 only — 3.9 gives false ~13%). After each merge: git fetch origin planning && git reset --hard origin/planning before any .planning doc commit."
 }
