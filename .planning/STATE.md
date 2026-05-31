@@ -11,17 +11,16 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — working the merge queue one PR at a time (Claude deep-review per PR; Copilot errored on several). **MERGED #58** (MockFHIR connector, CONN-02, issue #11) after a Claude review + fix-forward I pushed to `ha/issue-11`: corrected the `partial`-flag bug on snapshot load, pinned `fhirpy 2.2.0` (was 1.4.2, off-spec), dropped unused `aiosqlite`; CI green, `app/providers` 100% on py3.12; approved + admin squash-merged (branch protection needed the bypass). Set up **PR #62** (Claude automated PR-review GitHub Action — needs Bader to install the Claude GitHub App + add an auth secret; does not retro-review open PRs). Earlier: Phase-1/M0 validation audit (`phases/01-foundation-contracts-m0-setup/01-VALIDATION.md`, M0 substantively COMPLETE, 4 gaps) + quick task 260531-2sh (FE-07 + openapi.json regen, **PR #61**). Remaining audit gaps: no backend mypy in CI / CODEOWNERS routes only `.planning/`.
+Last activity: 2026-05-31 — working the merge queue one PR at a time (Claude deep-review per PR; Copilot errored/conflict-skipped on several). **MERGED #58** (MockFHIR, CONN-02, #11) + **#55** (Postgres cache, #12). For #55 I extended the PR with refresh-on-read (CACHE-02/03): `expires_at` TTL + `get_or_refresh` under `pg_try_advisory_xact_lock` returning a `CacheStatus` for X-Cache, tz-safe expiry; then resolved a `requirements.txt` conflict vs planning by merging planning into the branch (kept `fhirpy 2.2.0` + `aiosqlite`) — that conflict was why `pull_request` CI was silently skipping (no mergeable commit). Full 5-package gate 100% on py3.12; backend CI green; approved + admin squash-merged. Set up **PR #62** (Claude auto-review Action — needs Bader to install the app + add a secret). Earlier: M0 validation audit (`phases/01-.../01-VALIDATION.md`) + quick task 260531-2sh (FE-07 + openapi regen, **PR #61**). Remaining audit gaps: no backend mypy in CI / CODEOWNERS routes only `.planning/`. **Follow-up owed:** wire `get_or_refresh` + X-Cache into `api/packet.py` off the `store.py` stand-in.
 
-Progress (Phase 1 / M0): [█████████░] ~92%
+Progress (Phase 1 / M0): [██████████] ~97% — M0 substantively complete; merge queue draining (#58, #55 in). Spilling into M1 prerequisites (MockFHIR + cache landed).
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
 ### Open PRs / In Review (working the queue one-by-one this session)
 
-- **#55 (#12 cache, ha/issue-12, Hamza)** — "added database caching", a Postgres cache. **CRITICAL: reconcile vs #60 (issue #23, ALSO a Postgres cache from Hamza) AND #51's in-memory stand-in `cache/store.py`** — decide which is authoritative before merging either. CI gate requires `app/cache` 100%. NEXT.
-- **#60 (#23 Database cache: store records + audit log, ha/issue-23, Hamza)** — overlaps #55; the AuditEvent-on-read angle (CACHE-04). Reconcile with #55.
-- **#56 (#14 openFDA drug-safety, feat/drug-safety-openfda-14)** — reasoning/knowledge runtime; gate requires `app/knowledge`+`app/reasoning` at 100%.
+- **#60 (#23 PostgresProvider, ha/issue-23, Hamza)** — MIS-TITLED "Database cache" but actually the **PostgresProvider hospital connector (CONN-03, M2)** + two institution SQL schemas (Copilot confirmed). NOT the cache (that was #55). Touches `providers/__init__.py` → WILL conflict with merged #58; needs a planning merge. M2/Phase-3 scope.
+- **#56 (#14 openFDA drug-safety, feat/drug-safety-openfda-14)** — reasoning/knowledge runtime; gate requires `app/knowledge`+`app/reasoning` at 100%. NEXT.
 - **#61 (FE-07 + openapi.json, feat/fe07-openapi-contract, Bader)** — closes the two material M0 audit gaps; frontend lint+tsc+vitest green (7/7), code-only branch, no AI-trace watermarks. Ready to merge.
 - **#59 (#27 PDF connector, feat/pdf-connector)** — CONN-04 char-offset provenance; Phase 4/M3 work. Review last.
 - **#62 (ci: Claude auto-review workflow, ci/claude-auto-review, Bader)** — adds the Claude GitHub Action; merge after Bader installs the app + secret.
@@ -29,6 +28,7 @@ Progress (Phase 1 / M0): [█████████░] ~92%
 ### Done (on `planning`, green) — this session's merges
 
 - **#11 MockFHIR connector (PR #58, merged `b124bfd`)** — `providers/mock_fhir.py` `MockFHIRProvider` (CONN-02): snapshot-first HAPI R4 fetch, trims+validates the 6 types, honest coverage/provenance, ABC-conformant. Fix-forward applied (partial flag, fhirpy 2.2.0, dropped aiosqlite). `app/providers` 100% on py3.12.
+- **#12 Postgres cache (PR #55, merged `dfc63ee`)** — `cache/models.py` (CachedResource/EvidenceCard/AuditEvent, JSONB↔JSON variant), `cache/repo.py`: idempotent upsert (CACHE-01), audit-on-read (CACHE-04), **refresh-on-read (CACHE-02/03)** — `expires_at` TTL + `get_or_refresh` under `pg_try_advisory_xact_lock` (winner re-pulls, losers serve cache) → `CacheStatus` for X-Cache, tz-safe expiry. Extended by Bader during review; requirements conflict vs planning resolved. `app/cache` 100% on py3.12. Follow-up: wire into `api/packet.py` off the `store.py` stand-in.
 
 ### Done (on `planning`, green)
 
