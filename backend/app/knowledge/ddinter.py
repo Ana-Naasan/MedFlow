@@ -26,13 +26,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Literal
+from typing import Literal, cast
 
 from backend.app.knowledge.loader import load_ddinter
 from backend.app.knowledge.rxnav import DrugResolution
 
 Severity = Literal["Minor", "Moderate", "Major"]
 MatchMethod = Literal["input_name", "rxnav_name", "synonym"]
+
+# Valid DDInter severity levels. Rows whose level is outside this set are
+# treated as malformed and skipped at index-build time, so the ``Severity``
+# typing of stored rows is a checked invariant rather than a blind assumption.
+_VALID_LEVELS: frozenset[str] = frozenset({"Minor", "Moderate", "Major"})
 
 
 # ── Vendored synonym map: RxNorm preferred-term → DDInter preferred-term ─────
@@ -82,6 +87,8 @@ def _build_index() -> dict[str, dict[str, _RowTuple]]:
         a_key, b_key = a_orig.strip().lower(), b_orig.strip().lower()
         if not a_key or not b_key or a_key == b_key:
             continue
+        if row["level"] not in _VALID_LEVELS:
+            continue  # malformed severity → skip (keeps Severity typing honest)
         info: _RowTuple = (a_orig, b_orig, row["level"], row["ddinter_id_a"], row["ddinter_id_b"])
         idx.setdefault(a_key, {})[b_key] = info
         idx.setdefault(b_key, {})[a_key] = info
@@ -165,6 +172,14 @@ def find_interactions(resolutions: list[DrugResolution]) -> list[DDInterInteract
         if row is None:
             continue
         a_orig, b_orig, level, id_a, id_b = row
+        # drug_a/drug_b + their ids come from CSV row order; ma/mb follow the
+        # resolution (combinations) order. Align each match method to the drug
+        # it actually resolved so match_method_a always describes drug_a, even
+        # when the patient's input order is the reverse of the CSV row order.
+        if a_orig.strip().lower() == ka:
+            method_a, method_b = ma, mb
+        else:  # a_orig corresponds to the kb side
+            method_a, method_b = mb, ma
         unsure = (
             ra.match_quality == "approximate"
             or rb.match_quality == "approximate"
@@ -175,11 +190,11 @@ def find_interactions(resolutions: list[DrugResolution]) -> list[DDInterInteract
             DDInterInteraction(
                 drug_a=a_orig,
                 drug_b=b_orig,
-                level=level,  # type: ignore[arg-type]
+                level=cast(Severity, level),  # checked in _build_index
                 ddinter_id_a=id_a,
                 ddinter_id_b=id_b,
-                match_method_a=ma,
-                match_method_b=mb,
+                match_method_a=method_a,
+                match_method_b=method_b,
                 unsure=unsure,
                 evidence_id=_stable_evidence_id(a_orig, b_orig),
                 snippet=(f"DDInter: {a_orig} + {b_orig} → {level} interaction."),
