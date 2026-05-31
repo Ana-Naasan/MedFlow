@@ -97,7 +97,7 @@ export default function IntakePage() {
               <div className="chip-row">
                 <span className="chip">ID: {result.patient_id}</span>
                 <span className="chip">{result.resource_count} resources</span>
-                <span className="chip">{result.hypothesis_ids.length} hypotheses</span>
+                <span className="chip">{(result.hypothesis_ids ?? []).length} hypotheses</span>
               </div>
             </div>
           )}
