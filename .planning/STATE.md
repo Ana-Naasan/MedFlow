@@ -10,11 +10,30 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 ## Current Position
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-05-30 — Roadmap created from PRD (5 phases mirroring M0–M4); 55/55 v1 requirements mapped (added OPS-01/02 DevOps track, owner Hamza)
+Status: In progress — team executing against GitHub issues on the `planning` dev branch
+Last activity: 2026-05-31 — PR #44 (Provider ABC / connector interface, #3) opened and reviewed; scaffold + CI green on `planning`; spike #1 done
 
-Progress: [░░░░░░░░░░] 0%
+Progress (Phase 1 / M0): [███░░░░░░░] ~30%
+
+**Branch model:** `planning` = protected dev/integration branch (PR + 1 review required, no direct pushes); `main` = submission branch (promote `planning → main` when verified).
+
+### Open PRs / In Review
+
+| PR | Issue | Title | Author | CI | Review |
+|----|-------|-------|--------|----|--------|
+| #44 | #3 | Provider ABC / connector interface (registry, errors, 11 tests) | @B2707 | ✅ green | Reviewed (2 minor notes) — needs 1 teammate approval to merge |
+
+### Done (on `planning`, green)
+
+- #1 spike — all 6 FHIR R4B resources import + `model_validate` (8 tests)
+- #2 scaffold — runnable monorepo (backend `/health`+`/docs`, frontend, docker-compose 3× Postgres)
+- #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
+
+### In flight
+
+- #9 provisioning (Hamza) — Gemini/openFDA keys; blocks reasoning runtime (#14, #15)
+- #5 FHIR subset (Mohammad) — Ready, starter posted; blocks #6, #11
+- #4 DTO/OpenAPI contract (Bader) — Ready; blocks API (#17) + all frontend
 
 ## Performance Metrics
 
@@ -54,6 +73,8 @@ None yet.
 
 ### Blockers/Concerns
 
+- [Phase 1 — CRITICAL PATH]: #3 (Provider ABC, in review as PR #44) and #4 (DTO/OpenAPI contract) — both @B2707 — are the fan-out point. Until merged, all connectors (#11/#23/#27/#28), the cache→API chain (#12→#17), and all frontend (#19/#24/#25) stay blocked. Fastest team unblock = land #3 + #4.
+- [Process]: `planning` is protected (PR + 1 review). Every PR gets a code review before merge; watch for AI-trace watermarks (PR #44 arrived with `Co-Authored-By: Claude` + `🤖 Generated with Claude Code` — both stripped). No Claude/AI references anywhere per project policy.
 - [Phase 2]: The hour-6 §22 gate is the survival floor — the MockFHIR → cache → flatten → reason → verified cited hypothesis → /packet → rendered clickable citation chain must be green before widening. Watch the clock; apply the cut order if at risk.
 - [Phase 3]: RxNav→DDInter/Beers/ACB bridge is keyed by name/ingredient/ATC (not RxCUI) — a string/class match with miss risk (salts, synonyms, combos); needs the flagged fallback and manual verification for demo drugs.
 
@@ -67,6 +88,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-30
-Stopped at: ROADMAP.md and STATE.md created; REQUIREMENTS.md traceability confirmed (55/55 mapped)
+Last session: 2026-05-31
+Stopped at: Phase 1 execution underway. PR #44 (#3 Provider ABC) reviewed + cleaned (AI traces stripped), CI green, awaiting 1 teammate approval. STATE synced with open-PR tracking.
 Resume file: None
+Next: land #3 (#44) + #4 to unblock the team; review incoming PRs (code review before merge); move issues across the board as PRs open/merge.
