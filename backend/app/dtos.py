@@ -25,12 +25,6 @@ class Hypothesis(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
 
 
-class CategoryCompleteness(BaseModel):
-    category: str = Field(..., description="Clinical data category, e.g. Medications.")
-    documented: bool = Field(..., description="True if the category has documented data.")
-    gap_note: str | None = Field(default=None, description="Clinician to-do when not documented.")
-
-
 class DecisionPacket(BaseModel):
     patient_id: str
     summary_markdown: str
