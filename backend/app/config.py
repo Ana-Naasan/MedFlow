@@ -7,6 +7,13 @@ REQUIRED_ENV_VARS = ("GOOGLE_GENAI_API_KEY", "OPENFDA_API_KEY", "DEV_TOKEN")
 # How long a cached resource stays fresh before a re-fetch is triggered.
 CACHE_TTL_SECONDS: int = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
 
+# Upper bound on the live Gemini reasoning call that runs inside the /packet
+# request path. A slow or hung call must not block the page until it gives up
+# ("Failed to load packet", #90) — once this is exceeded the pipeline abstains
+# to the citation-safe static scaffold. Pre-warming the cache (#34) keeps the
+# demo's first load a sub-second HIT; this bound protects the cold/miss path.
+REASONING_TIMEOUT_SECONDS: float = float(os.environ.get("REASONING_TIMEOUT_SECONDS", "25"))
+
 
 class MissingConfigurationError(RuntimeError):
     """Raised when a required runtime secret or key is not set."""
