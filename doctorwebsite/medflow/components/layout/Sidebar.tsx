@@ -12,6 +12,7 @@ import {
   Settings,
   LogOut,
   Search,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -27,6 +28,7 @@ interface NavItem {
 
 const NAV_ITEMS: readonly NavItem[] = [
   { label: "Records", href: "/dashboard", icon: FileText },
+  { label: "AI Review", href: "/ai-review", icon: Sparkles },
   { label: "Scheduler", href: "/scheduler", icon: CalendarDays },
   { label: "Directory", href: "/directory", icon: Users },
   { label: "Memos", href: "/memos", icon: FileEdit },
