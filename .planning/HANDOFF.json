@@ -1,0 +1,14 @@
+{
+  "status": "paused",
+  "phase": "1 — Foundation & Contracts (M0 Setup), ~93%",
+  "timestamp": "2026-05-31",
+  "branch": "planning",
+  "commit": "dff3b76",
+  "open_prs": [
+    {"number": 55, "issue": 12, "title": "real Postgres cache", "state": "reviewed, NOT merged — reconcile with #51 stand-in cache/store.py + 100% gate on app/cache"},
+    {"number": 56, "issue": 14, "title": "openFDA drug-safety", "state": "reviewed, NOT merged — 100% gate on app/knowledge+app/reasoning"}
+  ],
+  "blockers": ["Awaiting Bader's go / review of the #55 cache-overlap before merging the last 2 PRs"],
+  "next_action": "Run the full review->merge flow on #55 (reconcile vs the #51 in-memory stand-in cache) then #56; then run the PHASE-BOUNDARY REVIEW GATE before advancing to Phase 2.",
+  "notes": "Repo set to squash-only this session. Measure coverage on Python 3.12 only (local 3.9 gives false ~13%). Always reset local to origin/planning after each gh pr merge before doc-sync commits."
+}
