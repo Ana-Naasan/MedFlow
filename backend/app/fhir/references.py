@@ -62,8 +62,9 @@ def resolve_references(
 
     Parameters
     ----------
-    resource : dict[str, Any]
-        A raw FHIR resource dictionary (e.g. parsed from JSON).
+    resource : Any
+        A raw FHIR resource dictionary (e.g. parsed from JSON) or a nested fragment.
+        Non-dict values are returned unchanged.
     id_map : dict[str, str]
         Mapping from ``urn:uuid:<uuid>`` → ``ResourceType/id``.
 
