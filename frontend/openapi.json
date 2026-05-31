@@ -31,13 +31,51 @@
         }
       }
     },
-    "/packet/{patient_id}": {
+    "/patients": {
+      "get": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Get Patients",
+        "operationId": "get_patients_patients_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Patients Patients Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/patients/{patient_id}/packet": {
       "get": {
         "tags": [
           "packet"
         ],
         "summary": "Get Packet",
-        "operationId": "get_packet_packet__patient_id__get",
+        "operationId": "get_packet_patients__patient_id__packet_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "patient_id",
@@ -55,7 +93,205 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DecisionPacket"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Packet Patients  Patient Id  Packet Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patient_id}/resource/{resource_type}/{resource_id}": {
+      "get": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Get Patient Citation",
+        "operationId": "get_patient_citation_patients__patient_id__resource__resource_type___resource_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Type"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Patient Citation Patients  Patient Id  Resource  Resource Type   Resource Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patient_id}/refresh": {
+      "post": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_patients__patient_id__refresh_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Refresh Patients  Patient Id  Refresh Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connectors": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Get Connectors",
+        "operationId": "get_connectors_connectors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Connectors Connectors Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/evidence/{evidence_id}": {
+      "get": {
+        "tags": [
+          "evidence"
+        ],
+        "summary": "Get Evidence",
+        "operationId": "get_evidence_evidence__evidence_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evidence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Evidence Evidence  Evidence Id  Get"
                 }
               }
             }
@@ -76,81 +312,6 @@
   },
   "components": {
     "schemas": {
-      "Citation": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "description": "Citation type, such as resource or evidence card."
-          },
-          "ref": {
-            "type": "string",
-            "title": "Ref",
-            "description": "Resolvable citation target."
-          },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label",
-            "description": "Display label for the citation."
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "ref"
-        ],
-        "title": "Citation"
-      },
-      "DecisionPacket": {
-        "properties": {
-          "patient_id": {
-            "type": "string",
-            "title": "Patient Id"
-          },
-          "summary_markdown": {
-            "type": "string",
-            "title": "Summary Markdown"
-          },
-          "hypotheses": {
-            "items": {
-              "$ref": "#/components/schemas/Hypothesis"
-            },
-            "type": "array",
-            "title": "Hypotheses"
-          },
-          "data_gaps": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Data Gaps"
-          },
-          "cache_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cache Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "patient_id",
-          "summary_markdown"
-        ],
-        "title": "DecisionPacket"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -163,46 +324,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "Hypothesis": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "why": {
-            "type": "string",
-            "title": "Why"
-          },
-          "severity": {
-            "type": "string",
-            "title": "Severity"
-          },
-          "confidence": {
-            "type": "string",
-            "title": "Confidence"
-          },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "type": "array",
-            "title": "Citations"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "title",
-          "why",
-          "severity",
-          "confidence"
-        ],
-        "title": "Hypothesis"
       },
       "ValidationError": {
         "properties": {
@@ -236,6 +357,12 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }
