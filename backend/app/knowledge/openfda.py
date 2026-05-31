@@ -1,32 +1,35 @@
 """OpenFDA adverse-event and drug-label lookups with rate limiting, caching,
 and evidence-snippet extraction.
 
+Real-API contract (verified against open.fda.gov, 2026-05-31)
+-------------------------------------------------------------
+* A normal ``/drug/event.json?search=...`` query returns
+  ``meta.results = {skip, limit, total}`` — it does **not** carry per-seriousness
+  counts. To count events by seriousness we run one filtered query per flag
+  (``search=<drug>+AND+seriousnessdeath:1&limit=1``) and read ``meta.results.total``.
+* Most-frequent reactions come from an aggregation query
+  (``count=patient.reaction.reactionmeddrapt.exact``) whose buckets are the
+  **top-level** ``results`` array of ``{term, count}`` (a count query has no
+  ``meta.results``).
+* Every ``openfda`` sub-field (rxcui, generic_name, ...) is an *array of strings*
+  and the ``openfda`` block may be absent. Label section fields
+  (boxed_warning, warnings, ...) are arrays of strings and are sparse.
+
 Rate limits
 -----------
-OpenFDA allows up to **240 requests per minute** with an API key
-(``OPENFDA_API_KEY`` env var).  Without a key the limit is lower and
-you may receive ``429 Too Many Requests``.  This module implements
-an in-memory token-bucket so we never exceed 200 req/min, leaving
-headroom for concurrent callers.
-
-Cache
------
-Responses are cached in an ``<OpenFDAQuery.__hash__> → _CacheEntry``
-dict with a default TTL of **1 hour**.  The cache is process-local
-and is invalidated on restart.
-
-Evidence snippets
------------------
-Each public function returns ``list[OpenFdaResult]`` whose
-``evidence_snippets`` field contains human-readable bullet points
-suitable for inclusion in a ``DecisionPacket`` or citation list.
+OpenFDA allows ~240 requests/min with an API key (``OPENFDA_API_KEY``). We keep
+an in-memory token bucket below that. Responses are cached process-locally with
+a 1-hour TTL and a bounded size.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
+from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from hashlib import md5
 from typing import Any
@@ -35,11 +38,21 @@ import httpx
 
 BASE_URL = "https://api.fda.gov/drug"
 
-# Each "token" represents one allowed request.  We refill at a rate
-# that stays comfortably below the 240 req/min cap.
-_RATE_LIMIT_RATE = 200  # tokens per minute
-_RATE_LIMIT_BURST = 20  # max burst size
-_CACHE_TTL = 3600  # seconds (1 hour)
+_RATE_LIMIT_RATE = 200  # tokens per minute (below the 240 cap)
+_RATE_LIMIT_BURST = 20
+_CACHE_TTL = 3600  # seconds
+_CACHE_MAX_SIZE = 512  # bounded LRU-ish eviction
+
+# Reaction aggregation field (.exact counts whole phrases, not tokenised words).
+_REACTION_COUNT_FIELD = "patient.reaction.reactionmeddrapt.exact"
+
+# Seriousness flags we surface, mapped {our_key: openFDA_field}. Filtered as
+# "<field>:1" against /event; the count is meta.results.total of that query.
+_SERIOUSNESS_FLAGS: dict[str, str] = {
+    "death": "seriousnessdeath",
+    "hospitalization": "seriousnesshospitalization",
+    "serious": "serious",
+}
 
 # ── Data containers ────────────────────────────────────────────────────────
 
@@ -48,24 +61,20 @@ _CACHE_TTL = 3600  # seconds (1 hour)
 class EvidenceSnippet:
     """A single piece of evidence with a stable, reproducible ID.
 
-    The ``id`` field is computed deterministically from the source,
-    the drug identifier, and the snippet type, so the same snippet
-    always gets the same ID across pipeline runs.
-
-    ``label`` is the human-readable text (e.g. a bullet point).
-    ``ref`` and ``kind`` mirror the ``Citation`` DTO fields for
-    easy conversion.
+    ``id`` is derived deterministically from the drug ref + snippet type so the
+    same snippet always gets the same ID across runs. ``ref``/``kind`` mirror
+    the ``Citation`` DTO for easy conversion.
     """
 
     id: str
-    kind: str  # e.g. "openfda_adverse_event", "openfda_label"
-    ref: str  # resolvable citation target
-    label: str  # human-readable evidence text
+    kind: str  # "openfda_adverse_event" | "openfda_label"
+    ref: str
+    label: str
 
 
 @dataclass
 class OpenFdaResult:
-    """Normalised representation of OpenFDA data for one drug."""
+    """Normalised, drug-level OpenFDA data."""
 
     rxcui: str | None = None
     generic_name: str | None = None
@@ -73,8 +82,8 @@ class OpenFdaResult:
     manufacturer: str | None = None
 
     # Adverse reactions (from /event)
-    serious_reactions: list[str] = field(default_factory=list)
     total_events: int = 0
+    reaction_counts: list[tuple[str, int]] = field(default_factory=list)  # real (term, count)
     event_count_by_seriousness: dict[str, int] = field(default_factory=dict)
 
     # Label snippets (from /label)
@@ -84,11 +93,15 @@ class OpenFdaResult:
     adverse_reactions_label: list[str] = field(default_factory=list)
     boxed_warnings: list[str] = field(default_factory=list)
 
-    # Evidence snippets with stable IDs, suitable for citations
     evidence_snippets: list[EvidenceSnippet] = field(default_factory=list)
 
     raw_event: dict[str, Any] | None = None
     raw_label: dict[str, Any] | None = None
+
+    @property
+    def serious_reactions(self) -> list[str]:
+        """Reaction terms ordered by real report frequency (desc)."""
+        return [term for term, _ in self.reaction_counts]
 
 
 # ── Token-bucket rate limiter ──────────────────────────────────────────────
@@ -104,7 +117,6 @@ class _TokenBucket:
         self._last = time.monotonic()
 
     async def acquire(self) -> None:
-        """Wait until a token is available (non-blocking if tokens remain)."""
         now = time.monotonic()
         elapsed = now - self._last
         self._last = now
@@ -128,15 +140,16 @@ _bucket = _TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
 
 @dataclass
 class _CacheEntry:
-    data: dict[str, Any]  # full response body
+    data: dict[str, Any]
     fetched_at: float
 
 
-_cache: dict[str, _CacheEntry] = {}
+_cache: OrderedDict[str, _CacheEntry] = OrderedDict()
 
 
-def _cache_key(endpoint: str, search: str, limit: int) -> str:
-    raw = f"{endpoint}|{search}|{limit}"
+def _cache_key(endpoint: str, params: Mapping[str, Any]) -> str:
+    """Stable key for (endpoint, query params). Param order does not matter."""
+    raw = endpoint + "|" + json.dumps(dict(params), sort_keys=True)
     return md5(raw.encode()).hexdigest()
 
 
@@ -147,114 +160,45 @@ def _cache_get(key: str) -> dict[str, Any] | None:
     if time.monotonic() - entry.fetched_at > _CACHE_TTL:
         del _cache[key]
         return None
+    _cache.move_to_end(key)
     return entry.data
 
 
 def _cache_set(key: str, data: dict[str, Any]) -> None:
     _cache[key] = _CacheEntry(data=data, fetched_at=time.monotonic())
+    _cache.move_to_end(key)
+    while len(_cache) > _CACHE_MAX_SIZE:
+        _cache.popitem(last=False)  # evict oldest
 
 
-# ── Evidence snippets ──────────────────────────────────────────────────────
+# ── Query building ─────────────────────────────────────────────────────────
 
 
-def _stable_id(drug_ref: str, *parts: str) -> str:
-    """Build a deterministic, stable ID for an evidence snippet.
+def _escape_value(value: str) -> str:
+    """Escape a value for an openFDA Lucene query.
 
-    Example
-    -------
-    >>> _stable_id("197885", "adverse_events", "total_count")
-    'openfda:197885:adverse_events:total_count'
+    Multi-word values are wrapped in quotes; embedded quotes/backslashes are
+    escaped so a stray character can't corrupt (or inject into) the query.
     """
-    safe = drug_ref.replace(" ", "_").lower() if drug_ref else "unknown"
-    return "openfda:" + ":".join([safe, *parts])
+    cleaned = value.replace("\\", "\\\\").replace('"', '\\"')
+    if any(c.isspace() for c in cleaned):
+        return f'"{cleaned}"'
+    return cleaned
 
 
-def _build_snippets(
-    result: OpenFdaResult,
-    source: str,  # "adverse_events" | "label"
-) -> list[EvidenceSnippet]:
-    """Return evidence bullet points with stable IDs from a result."""
-    snippets: list[EvidenceSnippet] = []
-    drug_ref = result.rxcui or result.generic_name or ""
-    drug_label = result.generic_name or result.brand_name or result.rxcui or "this drug"
+def _drug_filter(field_prefix: str, rxcui: str | None, generic_name: str | None) -> str:
+    """Build the drug search filter for a given field prefix.
 
-    if source == "adverse_events":
-        if result.total_events:
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "adverse_events", "total_count"),
-                kind="openfda_adverse_event",
-                ref=f"openfda:adverse_events:{drug_ref}:total_count",
-                label=(
-                    f"{result.total_events:,} adverse events reported "
-                    f"for {drug_label}."
-                ),
-            ))
-        if result.serious_reactions:
-            top = result.serious_reactions[:5]
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "adverse_events", "top_reactions"),
-                kind="openfda_adverse_event",
-                ref=f"openfda:adverse_events:{drug_ref}:top_reactions",
-                label=f"Most-reported reactions: {', '.join(top)}.",
-            ))
-        if result.event_count_by_seriousness.get("death"):
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "adverse_events", "death_count"),
-                kind="openfda_adverse_event",
-                ref=f"openfda:adverse_events:{drug_ref}:death_count",
-                label=(
-                    f"{result.event_count_by_seriousness['death']} events "
-                    "involved death."
-                ),
-            ))
-        if result.event_count_by_seriousness.get("hospitalization"):
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "adverse_events", "hospitalization_count"),
-                kind="openfda_adverse_event",
-                ref=f"openfda:adverse_events:{drug_ref}:hospitalization_count",
-                label=(
-                    f"{result.event_count_by_seriousness['hospitalization']} events "
-                    "involved hospitalisation."
-                ),
-            ))
-
-    if source == "label":
-        if result.boxed_warnings:
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "label", "boxed_warning"),
-                kind="openfda_label",
-                ref=f"openfda:label:{drug_ref}:boxed_warning",
-                label=f"BOXED WARNING: {result.boxed_warnings[0][:200]}",
-            ))
-        if result.warnings:
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "label", "warning"),
-                kind="openfda_label",
-                ref=f"openfda:label:{drug_ref}:warning",
-                label=f"WARNING: {result.warnings[0][:200]}",
-            ))
-        if result.contraindications:
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "label", "contraindication"),
-                kind="openfda_label",
-                ref=f"openfda:label:{drug_ref}:contraindication",
-                label=f"Contraindication: {result.contraindications[0][:200]}",
-            ))
-        if result.adverse_reactions_label:
-            snippets.append(EvidenceSnippet(
-                id=_stable_id(drug_ref, "label", "adverse_reactions"),
-                kind="openfda_label",
-                ref=f"openfda:label:{drug_ref}:adverse_reactions",
-                label=(
-                    f"Adverse reactions (from label): "
-                    f"{result.adverse_reactions_label[0][:200]}"
-                ),
-            ))
-
-    return snippets
+    *field_prefix* is ``patient.drug.openfda`` for /event or ``openfda`` for /label.
+    """
+    if rxcui:
+        return f"{field_prefix}.rxcui:{_escape_value(rxcui)}"
+    if generic_name:
+        return f"{field_prefix}.generic_name:{_escape_value(generic_name)}"
+    raise ValueError("Provide either rxcui or generic_name")
 
 
-# ── Internal helpers ───────────────────────────────────────────────────────
+# ── Internal HTTP helpers ──────────────────────────────────────────────────
 
 
 def _client() -> httpx.AsyncClient:
@@ -265,12 +209,39 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url=BASE_URL, params=params, timeout=15.0)
 
 
-def _first_text(obj: Any, *path: str) -> str | None:
-    """Walk a nested dict/list path and return the first string found.
+async def _get_json(endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Rate-limited, cached HTTP GET → parsed JSON. Cache keyed by full params."""
+    ckey = _cache_key(endpoint, params)
+    cached = _cache_get(ckey)
+    if cached is not None:
+        return cached
 
-    OpenFDA often wraps scalar values in single-element lists
-    (e.g. ``generic_name: ["LISINOPRIL"]``), so the walker
-    auto-unwraps length-1 lists.
+    await _bucket.acquire()
+    async with _client() as client:
+        resp = await client.get(f"/{endpoint}.json", params=params)
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "60"))
+            await asyncio.sleep(retry_after)
+            resp = await client.get(f"/{endpoint}.json", params=params)
+        resp.raise_for_status()
+        body = resp.json()
+
+    _cache_set(ckey, body)
+    return body
+
+
+def _meta_total(body: dict[str, Any]) -> int:
+    return int(body.get("meta", {}).get("results", {}).get("total", 0) or 0)
+
+
+# ── Parsing helpers ────────────────────────────────────────────────────────
+
+
+def _first_text(obj: Any, *path: str) -> str | None:
+    """Walk a nested dict/list path, returning the first scalar string.
+
+    OpenFDA wraps scalars in single-element lists (e.g. ``generic_name: ["LISINOPRIL"]``),
+    so length-1 lists are auto-unwrapped.
     """
     for key in path:
         if isinstance(obj, dict):
@@ -287,7 +258,7 @@ def _first_text(obj: Any, *path: str) -> str | None:
 
 
 def _first_text_list(obj: Any, *path: str) -> list[str]:
-    """Walk a nested path and return the first list of strings found."""
+    """Walk a nested path and return the first list of strings found (sparse-safe)."""
     for key in path:
         if isinstance(obj, dict):
             obj = obj.get(key)
@@ -301,74 +272,98 @@ def _first_text_list(obj: Any, *path: str) -> list[str]:
     return [text] if text else []
 
 
-def _reaction_reports(results: list[dict]) -> list[str]:
-    """Extract reaction PT (preferred term) strings from event results."""
-    out: set[str] = set()
-    for item in results:
-        reactions = item.get("patient", {}).get("reaction", [])
-        for r in reactions:
-            if isinstance(r, dict):
-                pt = r.get("reactionmeddrapt")
-                if pt:
-                    out.add(str(pt))
-    return sorted(out, key=lambda s: -len(s))
+def _drug_metadata(results_raw: list[dict], rxcui: str | None, generic_name: str | None) -> dict:
+    """Pull rxcui/generic/brand/manufacturer off the best-matching sample record."""
+    for item in results_raw:
+        for d in item.get("patient", {}).get("drug", []):
+            of = d.get("openfda", {})
+            rxcuis = of.get("rxcui", [])
+            gnames = [g.lower() for g in of.get("generic_name", [])]
+            if rxcui and rxcui in rxcuis:
+                return of
+            if generic_name and generic_name.lower() in gnames:
+                return of
+    # fall back to the first drug entry that carries an openfda block
+    for item in results_raw:
+        for d in item.get("patient", {}).get("drug", []):
+            if d.get("openfda"):
+                return d["openfda"]
+    return {}
 
 
-_SERIOUSNESS_KEYS = {
-    "death": "death",
-    "disabling": "disability",
-    "hospitalization": "hospitalization",
-    "life_threatening": "life_threatening",
-    "required_intervention": "required_intervention",
-    "other": "other",
+# ── Evidence snippets ──────────────────────────────────────────────────────
+
+
+def _stable_id(drug_ref: str, *parts: str) -> str:
+    """Deterministic, stable evidence-snippet ID."""
+    safe = drug_ref.replace(" ", "_").lower() if drug_ref else "unknown"
+    return "openfda:" + ":".join([safe, *parts])
+
+
+_SERIOUSNESS_SNIPPET_TEXT = {
+    "death": "involved death",
+    "hospitalization": "involved hospitalisation",
 }
 
 
-def _count_by_seriousness(result: dict) -> dict[str, int]:
-    """Parse the serious-ness breakdown from an event result."""
-    serious = result.get("serious", 0)
-    out: dict[str, int] = {}
-    if serious:
-        out["serious"] = int(serious)
-    for field, key in _SERIOUSNESS_KEYS.items():
-        val = result.get(field)
-        if val:
-            out[key] = int(val)
-    out["total"] = int(result.get("total", 0) or 0)
-    return out
+def _build_snippets(result: OpenFdaResult, source: str) -> list[EvidenceSnippet]:
+    """Evidence bullet points with stable IDs (source: 'adverse_events' | 'label')."""
+    snippets: list[EvidenceSnippet] = []
+    drug_ref = result.rxcui or result.generic_name or ""
+    drug_label = result.generic_name or result.brand_name or result.rxcui or "this drug"
 
-
-async def _get_json(endpoint: str, search: str, limit: int) -> dict[str, Any]:
-    """Rate-limited, cached HTTP GET → parsed JSON."""
-    ckey = _cache_key(endpoint, search, limit)
-
-    # Check cache first
-    cached = _cache_get(ckey)
-    if cached is not None:
-        return cached
-
-    await _bucket.acquire()
-
-    async with _client() as client:
-        resp = await client.get(
-            f"/{endpoint}.json",
-            params={"search": search, "limit": limit},
-        )
-
-        # Handle rate-limit response
-        if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", "60"))
-            await asyncio.sleep(retry_after)
-            resp = await client.get(
-                f"/{endpoint}.json",
-                params={"search": search, "limit": limit},
+    if source == "adverse_events":
+        if result.total_events:
+            snippets.append(
+                EvidenceSnippet(
+                    id=_stable_id(drug_ref, "adverse_events", "total_count"),
+                    kind="openfda_adverse_event",
+                    ref=f"openfda:adverse_events:{drug_ref}:total_count",
+                    label=f"{result.total_events:,} adverse events reported for {drug_label}.",
+                )
             )
+        if result.reaction_counts:
+            top = result.reaction_counts[:5]
+            rendered = ", ".join(f"{term} ({count:,})" for term, count in top)
+            snippets.append(
+                EvidenceSnippet(
+                    id=_stable_id(drug_ref, "adverse_events", "top_reactions"),
+                    kind="openfda_adverse_event",
+                    ref=f"openfda:adverse_events:{drug_ref}:top_reactions",
+                    label=f"Most-reported reactions (by report count): {rendered}.",
+                )
+            )
+        for key, phrase in _SERIOUSNESS_SNIPPET_TEXT.items():
+            count = result.event_count_by_seriousness.get(key)
+            if count:
+                snippets.append(
+                    EvidenceSnippet(
+                        id=_stable_id(drug_ref, "adverse_events", f"{key}_count"),
+                        kind="openfda_adverse_event",
+                        ref=f"openfda:adverse_events:{drug_ref}:{key}_count",
+                        label=f"{count:,} reported events {phrase}.",
+                    )
+                )
 
-        resp.raise_for_status()
-        body = resp.json()
+    if source == "label":
+        label_sections = [
+            ("boxed_warning", result.boxed_warnings, "BOXED WARNING"),
+            ("warning", result.warnings, "WARNING"),
+            ("contraindication", result.contraindications, "Contraindication"),
+            ("adverse_reactions", result.adverse_reactions_label, "Adverse reactions (from label)"),
+        ]
+        for part, values, prefix in label_sections:
+            if values:
+                snippets.append(
+                    EvidenceSnippet(
+                        id=_stable_id(drug_ref, "label", part),
+                        kind="openfda_label",
+                        ref=f"openfda:label:{drug_ref}:{part}",
+                        label=f"{prefix}: {values[0][:200]}",
+                    )
+                )
 
-    _cache_set(ckey, body)
-    return body
+    return snippets
 
 
 # ── Public API ─────────────────────────────────────────────────────────────
@@ -380,71 +375,51 @@ async def lookup_adverse_events(
     generic_name: str | None = None,
     limit: int = 10,
 ) -> list[OpenFdaResult]:
-    """Query the FDA adverse-event endpoint (``/event``) for one or more
-    drugs identified by RxCUI or generic name.
+    """Query the FDA adverse-event endpoint for one drug (by RxCUI or generic name).
 
-    Parameters
-    ----------
-    rxcui : str | None
-        RxNorm RxCUI identifier.
-    generic_name : str | None
-        Generic drug name (e.g. ``\"lisinopril\"``).
-    limit : int
-        Maximum number of results (default 10).
-
-    Returns
-    -------
-    list[OpenFdaResult]
-        One entry per result returned by the API.
+    Aggregates: total report count, most-frequent reactions with real counts
+    (``count=`` aggregation), and per-seriousness counts (one filtered query per
+    flag). Returns a single drug-level result in a list, or ``[]`` if nothing matched.
     """
-    if rxcui:
-        search = f"patient.drug.openfda.rxcui:{rxcui}"
-    elif generic_name:
-        search = f'patient.drug.openfda.generic_name:"{generic_name}"'
-    else:
-        raise ValueError("Provide either rxcui or generic_name")
+    base = _drug_filter("patient.drug.openfda", rxcui, generic_name)
 
-    body = await _get_json("event", search, limit)
-    results_raw = body.get("results", [])
+    main = await _get_json("event", {"search": base, "limit": limit})
+    total_events = _meta_total(main)
+    results_raw = main.get("results", [])
+    if total_events == 0 and not results_raw:
+        return []
 
-    # Collapse metadata once
-    meta = body.get("meta", {}).get("results", {})
-    total_events = int(meta.get("total", 0))
-    event_counts = _count_by_seriousness(meta)
-    reactions = _reaction_reports(results_raw)
+    # Real most-frequent reactions (with counts).
+    counts_body = await _get_json(
+        "event", {"search": base, "count": _REACTION_COUNT_FIELD, "limit": 10}
+    )
+    reaction_counts = [
+        (str(b["term"]), int(b["count"]))
+        for b in counts_body.get("results", [])
+        if b.get("term") is not None and b.get("count") is not None
+    ]
 
-    results: list[OpenFdaResult] = []
-    for item in results_raw:
-        drugs = item.get("patient", {}).get("drug", [])
-        candidate: dict | None = None
-        for d in drugs:
-            of = d.get("openfda", {})
-            rxcuis = of.get("rxcui", [])
-            gnames = of.get("generic_name", [])
-            if rxcui and rxcui in rxcuis:
-                candidate = d
-                break
-            if generic_name and generic_name.lower() in {g.lower() for g in gnames}:
-                candidate = d
-                break
-        if candidate is None and drugs:
-            candidate = drugs[0]
+    # Real per-seriousness counts (one query each → meta.results.total).
+    seriousness: dict[str, int] = {}
+    for key, flag_field in _SERIOUSNESS_FLAGS.items():
+        body = await _get_json("event", {"search": f"{base}+AND+{flag_field}:1", "limit": 1})
+        count = _meta_total(body)
+        if count:
+            seriousness[key] = count
 
-        r = OpenFdaResult(
-            rxcui=rxcui or _first_text(candidate, "openfda", "rxcui"),
-            generic_name=generic_name
-            or _first_text(candidate, "openfda", "generic_name"),
-            brand_name=_first_text(candidate, "openfda", "brand_name"),
-            manufacturer=_first_text(item, "companynumb"),
-            serious_reactions=reactions,
-            total_events=total_events,
-            event_count_by_seriousness=event_counts,
-            raw_event=item,
-        )
-        r.evidence_snippets = _build_snippets(r, source="adverse_events")
-        results.append(r)
-
-    return results
+    of = _drug_metadata(results_raw, rxcui, generic_name)
+    result = OpenFdaResult(
+        rxcui=rxcui or _first_text(of, "rxcui"),
+        generic_name=generic_name or _first_text(of, "generic_name"),
+        brand_name=_first_text(of, "brand_name"),
+        manufacturer=_first_text(of, "manufacturer_name"),
+        total_events=total_events,
+        reaction_counts=reaction_counts,
+        event_count_by_seriousness=seriousness,
+        raw_event=results_raw[0] if results_raw else None,
+    )
+    result.evidence_snippets = _build_snippets(result, source="adverse_events")
+    return [result]
 
 
 async def lookup_label(
@@ -453,31 +428,9 @@ async def lookup_label(
     generic_name: str | None = None,
     limit: int = 1,
 ) -> list[OpenFdaResult]:
-    """Query the FDA drug-label endpoint (``/label``) for one or more
-    drugs identified by RxCUI or generic name.
-
-    Parameters
-    ----------
-    rxcui : str | None
-        RxNorm RxCUI identifier.
-    generic_name : str | None
-        Generic drug name (e.g. ``\"lisinopril\"``).
-    limit : int
-        Maximum number of results (default 1).
-
-    Returns
-    -------
-    list[OpenFdaResult]
-        One entry per result returned by the API.
-    """
-    if rxcui:
-        search = f"openfda.rxcui:{rxcui}"
-    elif generic_name:
-        search = f'openfda.generic_name:"{generic_name}"'
-    else:
-        raise ValueError("Provide either rxcui or generic_name")
-
-    body = await _get_json("label", search, limit)
+    """Query the FDA drug-label endpoint for one drug (by RxCUI or generic name)."""
+    base = _drug_filter("openfda", rxcui, generic_name)
+    body = await _get_json("label", {"search": base, "limit": limit})
     results_raw = body.get("results", [])
 
     results: list[OpenFdaResult] = []
@@ -488,7 +441,7 @@ async def lookup_label(
             brand_name=_first_text(item, "openfda", "brand_name"),
             manufacturer=_first_text(item, "openfda", "manufacturer_name"),
             indications=_first_text_list(item, "indications_and_usage"),
-            warnings=_first_text_list(item, "warnings_and_cautions"),
+            warnings=_first_text_list(item, "warnings"),
             contraindications=_first_text_list(item, "contraindications"),
             adverse_reactions_label=_first_text_list(item, "adverse_reactions"),
             boxed_warnings=_first_text_list(item, "boxed_warning"),
@@ -507,66 +460,39 @@ async def lookup_drug(
     event_limit: int = 5,
     label_limit: int = 1,
 ) -> OpenFdaResult | None:
-    """Convenience: combine adverse-event + label lookups for a single drug.
-
-    Parameters
-    ----------
-    rxcui : str | None
-        RxNorm RxCUI identifier.
-    generic_name : str | None
-        Generic drug name (e.g. ``\"lisinopril\"``).
-    event_limit : int
-        Max adverse-event results (default 5).
-    label_limit : int
-        Max label results (default 1 — usually one label is enough).
-
-    Returns
-    -------
-    OpenFdaResult | None
-        A merged result, or ``None`` when nothing is found.
-    """
+    """Combine adverse-event + label lookups for a single drug."""
     if not rxcui and not generic_name:
         raise ValueError("Provide either rxcui or generic_name")
 
-    events, labels = None, None
+    events: list[OpenFdaResult] = []
+    labels: list[OpenFdaResult] = []
     try:
         events = await lookup_adverse_events(
             rxcui=rxcui, generic_name=generic_name, limit=event_limit
         )
     except httpx.HTTPStatusError:
         pass
-
     try:
-        labels = await lookup_label(
-            rxcui=rxcui, generic_name=generic_name, limit=label_limit
-        )
+        labels = await lookup_label(rxcui=rxcui, generic_name=generic_name, limit=label_limit)
     except httpx.HTTPStatusError:
         pass
 
     if not events and not labels:
         return None
 
-    base = OpenFdaResult()
-
     if events:
         base = events[0]
         if labels:
-            base.indications = labels[0].indications
-            base.warnings = labels[0].warnings
-            base.contraindications = labels[0].contraindications
-            base.adverse_reactions_label = labels[0].adverse_reactions_label
-            base.boxed_warnings = labels[0].boxed_warnings
-            base.raw_label = labels[0].raw_label
-            base.evidence_snippets = (
-                base.evidence_snippets + labels[0].evidence_snippets
-            )
-            if not base.generic_name:
-                base.generic_name = labels[0].generic_name
-            if not base.brand_name:
-                base.brand_name = labels[0].brand_name
-            if not base.manufacturer:
-                base.manufacturer = labels[0].manufacturer
-    elif labels:
-        base = labels[0]
-
-    return base
+            lab = labels[0]
+            base.indications = lab.indications
+            base.warnings = lab.warnings
+            base.contraindications = lab.contraindications
+            base.adverse_reactions_label = lab.adverse_reactions_label
+            base.boxed_warnings = lab.boxed_warnings
+            base.raw_label = lab.raw_label
+            base.evidence_snippets = base.evidence_snippets + lab.evidence_snippets
+            base.generic_name = base.generic_name or lab.generic_name
+            base.brand_name = base.brand_name or lab.brand_name
+            base.manufacturer = base.manufacturer or lab.manufacturer
+        return base
+    return labels[0]

@@ -1,93 +1,151 @@
-"""Shared fixtures and configuration for all backend tests."""
+"""Shared fixtures for backend tests.
 
-import json
-from pathlib import Path
-from typing import Any
+OpenFDA tests run fully offline via an ``httpx.MockTransport`` that serves
+real-SHAPED openFDA responses (verified against open.fda.gov 2026-05-31):
+a normal ``/event`` search returns ``meta.results.total`` + sample records,
+a ``count=`` query returns top-level ``{term, count}`` buckets, a
+seriousness-filtered search returns ``meta.results.total``, and ``/label``
+returns sparse array-of-string section fields. This keeps the connector's real
+query/parse paths under test without any network or fabricated ``meta`` shapes.
+"""
 
+from __future__ import annotations
+
+import time
+
+import httpx
 import pytest
 
-from backend.app.knowledge.openfda import _cache_key, _CacheEntry, _cache
+from backend.app.knowledge import openfda
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures"
+# RxCUI 197885 = lisinopril (the demo drug).
+_RXCUI = "197885"
 
-# Cache keys used by the fixtures
-_EVENT_KEY = _cache_key("event", "patient.drug.openfda.rxcui:197885", 2)
-_LABEL_KEY = _cache_key("label", "openfda.rxcui:197885", 1)
+# ── Real-shaped response bodies ──────────────────────────────────────────────
+
+_MAIN_EVENT = {
+    "meta": {"disclaimer": "openFDA", "results": {"skip": 0, "limit": 2, "total": 10064}},
+    "results": [
+        {
+            "safetyreportid": "100000001",
+            "serious": "1",
+            "seriousnessdeath": "1",
+            "patient": {
+                "drug": [
+                    {
+                        "medicinalproduct": "LISINOPRIL",
+                        "openfda": {
+                            "rxcui": ["197885"],
+                            "generic_name": ["LISINOPRIL"],
+                            "brand_name": ["PRINIVIL"],
+                            "manufacturer_name": ["Merck"],
+                        },
+                    }
+                ],
+                "reaction": [
+                    {"reactionmeddrapt": "COUGH"},
+                    {"reactionmeddrapt": "DIZZINESS"},
+                ],
+            },
+        }
+    ],
+}
+
+# count=patient.reaction.reactionmeddrapt.exact — top-level {term,count} buckets,
+# NO meta.results (matches the real count-query envelope).
+_COUNT_REACTIONS = {
+    "meta": {"disclaimer": "openFDA"},
+    "results": [
+        {"term": "COUGH", "count": 12000},
+        {"term": "DIZZINESS", "count": 9000},
+        {"term": "ANGIOEDEMA", "count": 1500},
+    ],
+}
 
 
-def _load_fixture(basename: str) -> dict[str, Any]:
-    return json.loads((FIXTURE_DIR / basename).read_text(encoding="utf-8"))
+def _seriousness_total(total: int) -> dict:
+    return {"meta": {"results": {"skip": 0, "limit": 1, "total": total}}, "results": [{}]}
 
 
-# ── Module-level autouse: clear cache before every test ────────────────────
+_SERIOUSNESS_TOTALS = {
+    "seriousnessdeath:1": 42,
+    "seriousnesshospitalization:1": 500,
+    "serious:1": 1000,
+}
+
+_LABEL = {
+    "meta": {"results": {"skip": 0, "limit": 1, "total": 1}},
+    "results": [
+        {
+            "boxed_warning": [
+                "WARNING: FETAL TOXICITY. Discontinue lisinopril when pregnancy is detected."
+            ],
+            "warnings": ["Anaphylactoid reactions and angioedema have been reported."],
+            "contraindications": ["Do not co-administer aliskiren in patients with diabetes."],
+            "indications_and_usage": ["Lisinopril is indicated for the treatment of hypertension."],
+            "adverse_reactions": ["Headache, dizziness, and cough were the most common reactions."],
+            "openfda": {
+                "rxcui": ["197885"],
+                "generic_name": ["LISINOPRIL"],
+                "brand_name": ["PRINIVIL"],
+                "manufacturer_name": ["Merck"],
+            },
+        }
+    ],
+}
+
+
+def _route(search: str, count: str | None, is_label: bool) -> dict:
+    """Map a decoded request to the right real-shaped body."""
+    if is_label:
+        return _LABEL
+    if count:
+        return _COUNT_REACTIONS
+    for flag, total in _SERIOUSNESS_TOTALS.items():
+        if flag in search:
+            return _seriousness_total(total)
+    return _MAIN_EVENT
+
+
+def _default_handler(request: httpx.Request) -> httpx.Response:
+    params = request.url.params
+    body = _route(
+        params.get("search", ""),
+        params.get("count"),
+        request.url.path.endswith("/label.json"),
+    )
+    return httpx.Response(200, json=body)
+
+
+def _install(monkeypatch, handler) -> None:
+    def _mock_client() -> httpx.AsyncClient:
+        return httpx.AsyncClient(base_url=openfda.BASE_URL, transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(openfda, "_client", _mock_client)
+
+
+# ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture(autouse=True)
-def _clear_openfda_cache() -> None:
-    _cache.clear()
-
-
-# ── Fixture data loaders (no side effects on _cache) ───────────────────────
-
-
-@pytest.fixture
-def openfda_event_197885_data() -> dict[str, Any]:
-    """Raw captured event response for RxCUI 197885 (lisinopril), limit=2."""
-    return _load_fixture("openfda_event_197885.json")
+def _reset_openfda_state() -> None:
+    """Clear cache and refill the token bucket before every test (no cross-talk)."""
+    openfda._cache.clear()
+    openfda._bucket._tokens = float(openfda._bucket._burst)
+    openfda._bucket._last = time.monotonic()
 
 
 @pytest.fixture
-def openfda_event_197885_serious_data() -> dict[str, Any]:
-    """Synthetic event fixture with death/hospitalization data for coverage."""
-    return _load_fixture("openfda_event_197885_serious.json")
+def mock_openfda(monkeypatch) -> None:
+    """Patch the HTTP client to serve real-shaped fixtures with no network."""
+    _install(monkeypatch, _default_handler)
 
 
 @pytest.fixture
-def openfda_label_197885_data() -> dict[str, Any]:
-    """Raw captured label response for RxCUI 197885 (lisinopril), limit=1."""
-    return _load_fixture("openfda_label_197885.json")
+def mock_openfda_factory(monkeypatch):
+    """Return an installer so a test can supply its own request handler."""
 
+    def _factory(handler) -> None:
+        _install(monkeypatch, handler)
 
-# ── Fixtures that pre-populate the module cache ────────────────────────────
-
-
-@pytest.fixture
-def cached_event_197885(
-    openfda_event_197885_data: dict[str, Any],
-) -> None:
-    """Pre-populate the OpenFDA cache for the event endpoint (limit=2).
-
-    After this fixture, ``lookup_adverse_events(rxcui='197885', limit=2)``
-    returns fixture data without a network call.
-    """
-    _cache[_EVENT_KEY] = _CacheEntry(
-        data=openfda_event_197885_data, fetched_at=999999999.0
-    )
-
-
-@pytest.fixture
-def cached_label_197885(
-    openfda_label_197885_data: dict[str, Any],
-) -> None:
-    """Pre-populate the OpenFDA cache for the label endpoint (limit=1, by rxcui)."""
-    _cache[_LABEL_KEY] = _CacheEntry(
-        data=openfda_label_197885_data, fetched_at=999999999.0
-    )
-
-
-@pytest.fixture
-def cached_event_197885_serious(
-    openfda_event_197885_serious_data: dict[str, Any],
-) -> None:
-    """Pre-populate cache with the serious-event fixture."""
-    _cache[_EVENT_KEY] = _CacheEntry(
-        data=openfda_event_197885_serious_data, fetched_at=999999999.0
-    )
-
-
-@pytest.fixture
-def cached_openfda_all(
-    cached_event_197885: None,
-    cached_label_197885: None,
-) -> None:
-    """Pre-populate both event and label caches."""
+    return _factory
