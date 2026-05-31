@@ -197,6 +197,26 @@ def test_build_packet_demo_001_returns_hypotheses() -> None:
     assert len(packet.completeness) >= 1
 
 
+def test_build_packet_demo_001_applies_gap_downgrade() -> None:
+    """Issue #30: demo medication-citing hypotheses are downgraded one step because
+    the patient record has no Allergy or Observation resources (safety-critical gaps)."""
+    packet = build_packet("DEMO-001")
+
+    def _cites_med(h: object) -> bool:
+        return any(
+            c.kind == "resource" and c.ref.startswith("MedicationStatement/")
+            for c in h.citations  # type: ignore[attr-defined]
+        )
+
+    med_citing = [h for h in packet.hypotheses if _cites_med(h)]
+    assert med_citing, "expected at least one medication-citing hypothesis in the demo"
+    for h in med_citing:
+        assert h.confidence == "medium", (
+            f"hypothesis {h.id} should be downgraded high → medium due to safety-critical gaps "
+            f"(Allergies, Labs), got confidence={h.confidence!r}"
+        )
+
+
 def test_build_packet_default_has_completeness() -> None:
     packet = build_packet("pat-001")
     assert len(packet.completeness) >= 1
