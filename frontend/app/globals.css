@@ -1,12 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── MedFlow design tokens ────────────────────────────────────────────────
+ * Ported from doctorwebsite/medflow/app/globals.css. Tailwind utilities in
+ * tailwind.config.ts reference these via `var(--token)` so theme tweaks
+ * happen here, not in the build artifact. The legacy umraa-amber palette
+ * is kept under the old token names for the bits of the app that haven't
+ * been migrated yet (citation modal, packet failure panel, etc.). */
 :root {
   color-scheme: light;
-  --background: #f4efe6;
-  --foreground: #1f2937;
+
+  /* Core MedFlow palette */
+  --mf-paper: #f6f4ee;
+  --mf-paper-2: #efece3;
+  --mf-ink: #2c2b27;
+  --mf-ink-soft: #76746c;
+  --mf-accent: #3a6f87; /* oklch(0.60 0.072 215) approximated for older browsers */
+  --mf-accent-soft: #e3ebf0;
+  --mf-clinician: #d4dfe6;
+  --mf-clinician-line: #4a6b88;
+  --mf-patient: #ead8c2;
+  --mf-patient-line: #b08358;
+  --mf-warm-tint: #f3ece1;
+  --mf-success: #3a9b6e;
+
+  /* Token aliases — Tailwind picks these up */
+  --background: var(--mf-paper);
+  --bg-surface: var(--mf-paper);
+  --bg-subtle: var(--mf-paper-2);
+  --foreground: var(--mf-ink);
+  --border: #cbc7bf;
+  --input: #c4bfb6;
+  --primary: var(--mf-accent);
+  --primary-foreground: #ffffff;
+  --accent: var(--mf-accent);
+  --accent-foreground: #ffffff;
+  --accent-hover: #2f5a6e;
+  --secondary: var(--mf-paper-2);
+  --secondary-foreground: var(--mf-ink);
+  --muted: var(--mf-paper-2);
+  --muted-foreground: var(--mf-ink-soft);
+  --card: var(--mf-paper);
+  --card-foreground: var(--mf-ink);
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --success: var(--mf-success);
+  --warning: #d97706;
+  --danger: #b91c1c;
+  --ring: var(--mf-accent);
+  --radius: 0.5rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(44, 43, 39, 0.06);
+  --shadow-md: 0 4px 12px rgba(44, 43, 39, 0.08);
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, "Courier New", monospace;
+
+  /* ── Legacy umraa tokens (still referenced by un-migrated CSS below) ─── */
   --panel: rgba(255, 255, 255, 0.78);
   --panel-border: rgba(31, 41, 55, 0.12);
-  --accent: #8c5a3d;
-  --accent-strong: #5b3a2e;
-  --muted: #6b7280;
+  --accent-strong: var(--mf-accent);
+  --text-secondary: var(--mf-ink-soft);
 }
 
 * {
@@ -17,12 +75,41 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(140, 90, 61, 0.18), transparent 32%),
-    radial-gradient(circle at 80% 10%, rgba(31, 41, 55, 0.08), transparent 22%),
-    linear-gradient(180deg, #fbf7f0 0%, #efe4d7 100%);
+  background: var(--mf-paper);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* MedFlow eyebrow label (monospaced, uppercase, tracking) */
+.mf-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mf-accent);
+}
+
+.mf-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Surface card used by dashboard tiles */
+.mf-surface-card {
+  border: 2px solid color-mix(in oklch, var(--mf-ink) 18%, var(--mf-paper-2));
+  border-radius: 10px;
+  background: var(--mf-paper);
+  box-shadow: var(--shadow-sm);
 }
 
 a {
