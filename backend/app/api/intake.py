@@ -10,11 +10,18 @@ from backend.app.api.auth import require_dev_token
 from backend.app.cache import repo
 from backend.app.cache.store import build_packet
 from backend.app.dtos import IntakeRequest, IntakeResponse
+from backend.app.observability import get_logger, log_partial_fetch
 from backend.app.providers import ConnectorNotFound
 from backend.app.providers.base import ConnectorError
 from backend.app.providers.registry import build as build_connector
 
 intake_router = APIRouter(tags=["intake"], dependencies=[Depends(require_dev_token)])
+
+# Stable resource_type for the per-patient partial-data notice row, so /packet
+# can read it back at response time and fold it into DecisionPacket.data_gaps.
+FETCH_METADATA_TYPE = "FetchMetadata"
+
+_logger = get_logger(__name__)
 
 
 async def _get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
@@ -46,6 +53,19 @@ async def post_intake(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Connector error: {exc}",
         ) from exc
+
+    # #73: surface partial-data signals. log_partial_fetch returns None on a
+    # complete fetch — only persist when there's something honest to surface.
+    notice = log_partial_fetch(_logger, result)
+    if notice is not None:
+        await repo.upsert_resource(
+            db,
+            patient_id=patient_id,
+            resource_type=FETCH_METADATA_TYPE,
+            resource_id=patient_id,
+            body=notice,
+            source_provider=provider.id,
+        )
 
     resource_count = 0
     for entry in result.bundle.get("entry", []):
