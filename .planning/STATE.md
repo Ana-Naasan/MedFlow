@@ -11,15 +11,15 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — big PR-queue clearing pass (each: code+test+Copilot review → approve → admin squash-merge → close). Merged #47 (#21 seeds), #48 (#5 FHIR subset), #53 (fix-forward for #21 Copilot data findings), #52 (#6 flattener — closes the FHIR-03/04 gap), #50 (#28 HL7v2 scaffold). **#51 (#17 packet API) held — CI red on `black --check`** (router.py/auth.py/cache/store.py); commented the fix to Hamza, not merged.
+Last activity: 2026-05-31 — cleared the ENTIRE PR queue (6 PRs, full flow each). Merged #47 (#21 seeds), #48 (#5 FHIR subset), #53 (#21 fix-forward), #52 (#6 flattener), #50 (#28 HL7v2), and **#51 (#17 packet API)** — pushed the black fix to Hamza's branch with his OK (commit 7106c63), reviewed, approved, merged. PR queue is now EMPTY. (Note: I briefly mis-diagnosed #51 as having a MockFHIR import blocker — that was wrong; packet.py imports from cache.store which exists, CI was green, corrected on the PR.)
 
-Progress (Phase 1 / M0): [████████░░] ~80%
+Progress (Phase 1 / M0): [█████████░] ~90%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
 ### Open PRs / In Review
 
-- **#51 (#17 hour-6 packet API slice, Hamza) — BLOCKED on a real dependency gap (not just CI)**: I pushed the black fix (commit `4d6f1e9`, authored B2707, 3 files only) with Hamza's OK, so ruff+black are green. BUT review found `packet.py` imports `backend.app.providers.mock_fhir.MockFHIRProvider`, which **does not exist** anywhere yet — it's the MockFHIR connector, **issue #11 / CONN-02, not built**. black was masking it (CI order ruff→black→pytest); now CI fails at pytest (`ModuleNotFoundError: backend.app.providers.mock_fhir`), confirmed both locally and on the live run. `test_packet.py` imports `app`, so the whole suite goes red at collection. Commented two unblock paths on #51: (1) land #11 MockFHIR first then rebase, or (2) decouple `packet.py` to build from the merged seed bundle (`knowledge.loader.load_sample_bundle()`, #21) until #11 lands. **Awaiting decision; NOT merged.** Also flagged: #51's `cache/store.py` (in-memory TTL, explicitly a stand-in for #12) + `api/auth.py` overlap Bader's #12 cache / dev-auth — reconcile before merge.
+_None — queue clear._
 
 ### Done (on `planning`, green)
 
@@ -33,6 +33,7 @@ Progress (Phase 1 / M0): [████████░░] ~80%
 - #5 FHIR subset — `fhir/subset.py` (6 validated R4B builders via `fhir.resources.R4B.*` killing the R5-default gotcha + `reasoning_view` SEC-02 minimization: strips name/address/telecom/contact, drops birthDate→`ageYears`, keeps MRN-only identifiers, recursive incl. contained, non-mutating) + `fhir/references.py` (`urn:uuid:`→`ResourceType/id`, non-mutating) + 26 tests (PR #48). Full suite green. Unblocks #6, #11.
 - #6 flattener (FHIR-03/04) — `fhir/flatten.py` `flatten_to_tagged_text`: deterministic (fixed category order, NKA-aware), every category always rendered (present / `(stated as none by source)` / `(not documented)`), every clinical line tagged `[ResourceType/id]`, never emits raw FHIR JSON. + 190 lines of tests (PR #52). Closes the citation-tagged-context gap; feeds the Phase 2 reasoning core.
 - #28 HL7v2 scaffold — `providers/hl7v2.py` `HL7v2Provider`: parses one ADT^A01 PID → FHIR Patient demographics, `partial=True` + explicit scaffold warning, honest coverage dict, `ConnectorDataError` on bad input, conforms to the Provider ABC + 18 tests (PR #50). The §8 'first to cut' connector, honestly framed.
+- #17 packet API slice — `api/packet.py` (/patients, /{id}/packet w/ X-Cache:HIT, /{id}/resource/{rtype}/{id} + /evidence/{id} citation resolution, /{id}/refresh w/ X-Cache:REFRESH, /connectors) + `api/auth.py` (HTTPBearer dev-token) + CORS localhost:3000 + 3 tests (PR #51). Runs against an in-memory STAND-IN (`cache/store.py` static data) — real cache (#12) + reasoning (#14) replace it. NOTE: `cache/store.py` + `auth.py` will collide with #12/#13/dev-auth work — reconcile when building those.
 - #21 follow-up (PR #53) — corrected `acb.json` (every ingredient RxCUI re-derived from RxNav; the prior file collided RxCUIs across distinct drugs — 41493×4, 3498, 3489, 354770 — which would mis-key the ACB bridge; nortriptyline deduped to published grade 1; 74 drugs, 0 dup names/RxCUIs) + `SOURCES.md` (bundle med list corrected — no warfarin in the bundle; planted interaction is in the PDF + Beers rule; dropped uncommitted generator-script path). Resolves the Copilot data findings from #47.
 
 ### Ready / unblocked now
@@ -102,6 +103,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-31
-Stopped at: Phase 1 (M0) ~80%. Cleared 5 PRs through the full flow (code+test+Copilot review → approve → admin squash-merge → close): #47 (#21 seeds), #48 (#5 FHIR subset), #53 (fix-forward for #21 data findings), #52 (#6 flattener), #50 (#28 HL7v2). Flattener gap resolved. `planning`=761ff99, synced, tree clean. **#51 (#17 packet API) is the only thing keeping Phase 1 open — held on a `black --check` CI failure, fix commented to Hamza.**
+Stopped at: Phase 1 (M0) ~90%. Cleared the ENTIRE PR queue (6 PRs, full flow each): #47 (#21 seeds), #48 (#5 FHIR subset), #53 (#21 fix-forward), #52 (#6 flattener), #50 (#28 HL7v2), #51 (#17 packet API). `planning`=4cf9f15, synced, tree clean, 0 open PRs. (Pushed #51's black fix to Hamza's branch with his OK; briefly mis-diagnosed a MockFHIR blocker that didn't exist — corrected.)
 Resume file: None
-Next: (1) re-review + merge #51 once Hamza pushes the black fix (watch its `cache/store.py`+`auth.py` overlap with #12/#13). (2) **Phase 1 is then COMPLETE → run the PHASE-BOUNDARY REVIEW GATE (see Blockers): code-review → verify-work → secure-phase → add-tests, fix-forward, THEN advance to Phase 2.** (3) Phase 2 work: #12 cache (M1 §22 prerequisite), #23 Postgres connector, #33 observability; #14/#15 reasoning core (has flattener input, needs Gemini keys via #9). Watch the hour-6 §22 slice gate.
+Next: (1) **Determine whether Phase 1/M0 is actually COMPLETE** — PR queue is empty but verify M0 requirements (FHIR-01..04, CONN-01/06, SEC-02/03, API-08, FE-07, INFRA-01/02/04, OPS-01) are all delivered before declaring done. #9/OPS-01 (real Gemini/openFDA keys) is the likely outstanding M0 item — it stays open pending key provisioning by Hamza. (2) Once M0 is genuinely complete → run the PHASE-BOUNDARY REVIEW GATE (Blockers section): code-review → verify-work → secure-phase → add-tests, fix-forward, THEN advance to Phase 2. (3) Phase 2 work: #12 cache (M1 §22 prerequisite; reconcile w/ #51's stand-in cache/store.py), #23 Postgres, #33 observability; #14/#15 reasoning core (has flattener input, needs keys via #9). Watch the hour-6 §22 slice gate.
