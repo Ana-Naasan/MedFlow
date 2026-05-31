@@ -11,16 +11,24 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — ran the gsd-add-tests skill: drove the correctness-critical core to **100% line coverage** and raised the CI gate to `--cov-fail-under=100` on `fhir/providers/cache/knowledge/reasoning` (PR #57, merged; CI green at 100%). Added `test_coverage_branches.py` (27 branch tests), deleted dead `fhir/flattener.py`. Earlier: cleared the 6-PR queue (#47/#48/#53/#52/#50/#51). **PR #54 (#9 docker wiring, Hamza) still OPEN** — reviewed (CI green, no secrets), will merge next.
+Last activity: 2026-05-31 — working the merge queue one PR at a time (Claude deep-review per PR; Copilot errored on several). **MERGED #58** (MockFHIR connector, CONN-02, issue #11) after a Claude review + fix-forward I pushed to `ha/issue-11`: corrected the `partial`-flag bug on snapshot load, pinned `fhirpy 2.2.0` (was 1.4.2, off-spec), dropped unused `aiosqlite`; CI green, `app/providers` 100% on py3.12; approved + admin squash-merged (branch protection needed the bypass). Set up **PR #62** (Claude automated PR-review GitHub Action — needs Bader to install the Claude GitHub App + add an auth secret; does not retro-review open PRs). Earlier: Phase-1/M0 validation audit (`phases/01-foundation-contracts-m0-setup/01-VALIDATION.md`, M0 substantively COMPLETE, 4 gaps) + quick task 260531-2sh (FE-07 + openapi.json regen, **PR #61**). Remaining audit gaps: no backend mypy in CI / CODEOWNERS routes only `.planning/`.
 
 Progress (Phase 1 / M0): [█████████░] ~92%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
-### Open PRs / In Review (reviewed, NOT merged — paused for Bader's decision)
+### Open PRs / In Review (working the queue one-by-one this session)
 
-- **#55 (#12 cache, ha/issue-12, Hamza)** — "added database caching", THE REAL Postgres cache. **Must reconcile with #51's in-memory stand-in `cache/store.py`** before merge (don't double-build), and the CI gate now requires `app/cache` at 100% coverage. Review carefully.
+- **#55 (#12 cache, ha/issue-12, Hamza)** — "added database caching", a Postgres cache. **CRITICAL: reconcile vs #60 (issue #23, ALSO a Postgres cache from Hamza) AND #51's in-memory stand-in `cache/store.py`** — decide which is authoritative before merging either. CI gate requires `app/cache` 100%. NEXT.
+- **#60 (#23 Database cache: store records + audit log, ha/issue-23, Hamza)** — overlaps #55; the AuditEvent-on-read angle (CACHE-04). Reconcile with #55.
 - **#56 (#14 openFDA drug-safety, feat/drug-safety-openfda-14)** — reasoning/knowledge runtime; gate requires `app/knowledge`+`app/reasoning` at 100%.
+- **#61 (FE-07 + openapi.json, feat/fe07-openapi-contract, Bader)** — closes the two material M0 audit gaps; frontend lint+tsc+vitest green (7/7), code-only branch, no AI-trace watermarks. Ready to merge.
+- **#59 (#27 PDF connector, feat/pdf-connector)** — CONN-04 char-offset provenance; Phase 4/M3 work. Review last.
+- **#62 (ci: Claude auto-review workflow, ci/claude-auto-review, Bader)** — adds the Claude GitHub Action; merge after Bader installs the app + secret.
+
+### Done (on `planning`, green) — this session's merges
+
+- **#11 MockFHIR connector (PR #58, merged `b124bfd`)** — `providers/mock_fhir.py` `MockFHIRProvider` (CONN-02): snapshot-first HAPI R4 fetch, trims+validates the 6 types, honest coverage/provenance, ABC-conformant. Fix-forward applied (partial flag, fhirpy 2.2.0, dropped aiosqlite). `app/providers` 100% on py3.12.
 
 ### Done (on `planning`, green)
 
@@ -96,6 +104,16 @@ Copilot data findings from #21 — RESOLVED in PR #53 (merged). Remaining are co
 - [Phase 2]: The hour-6 §22 gate is the survival floor — the MockFHIR → cache → flatten → reason → verified cited hypothesis → /packet → rendered clickable citation chain must be green before widening. Watch the clock; apply the cut order if at risk.
 - [Phase 3]: RxNav→DDInter/Beers/ACB bridge is keyed by name/ingredient/ATC (not RxCUI) — a string/class match with miss risk (salts, synonyms, combos); needs the flagged fallback and manual verification for demo drugs.
 - [PHASE-BOUNDARY REVIEW GATE — standing rule, user-directed 2026-05-31]: Before advancing from ANY phase (1→2, 2→3, …) to the next, run a full multi-agent review over that phase's merged code, in order: (1) `/gsd-code-review` (bugs + quality), (2) `/gsd-verify-work` (every ROADMAP success criterion actually TRUE — the spec/"no mistakes" check), (3) `/gsd-secure-phase` (threat + SEC-02 PHI-minimization / read-only / no-secrets audit), (4) `/gsd-add-tests` (coverage gaps on critical-path code). Findings → fix-forward via the standard review→approve→merge flow, THEN advance. Do NOT run the gate until the phase is actually complete (e.g. Phase 1 is NOT done while PR #51/#17 is open).
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260531-2sh | FE-07 typed-client wiring + regenerate stale openapi.json (M0 contract gaps; PR #61) | 2026-05-31 | 4ce80e7 | [260531-2sh-fix-fe-07-typed-client-wiring-and-regene](./quick/260531-2sh-fix-fe-07-typed-client-wiring-and-regene/) |
+
+### Phase 1 / M0 Validation Audit (2026-05-31)
+
+Goal-backward audit vs the 5 success criteria + 14 requirements → `phases/01-foundation-contracts-m0-setup/01-VALIDATION.md`. **M0 substantively COMPLETE** on merged code (FHIR subset, deterministic flattener, SEC-02 minimization, Provider contract, OpenAPI/typed-client path all proven at the 100% gate). 4 in-repo gaps found; 2 material ones closed in PR #61 (FE-07, stale openapi.json). **2 remaining (minor, fix-or-accept at the phase-boundary gate):** no backend typecheck/mypy in CI (INFRA-02); CODEOWNERS routes only `.planning/` (INFRA-04). OPS-01 real-key provisioning (Hamza) is external, not a code gap.
 
 ## Deferred Items
 
