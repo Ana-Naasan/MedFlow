@@ -70,10 +70,9 @@ def resolve_references(
 
     Returns
     -------
-    dict[str, Any]
-        Shallow copy of *resource* with each ``reference`` value rewritten
-        when it matches a key in *id_map*.
-
+    Any
+        A new structure with each ``reference`` value rewritten when it matches a key in
+        *id_map*. (Dict/list nodes are rebuilt recursively; the input is not mutated.)
     Example
     -------
     >>> id_map = {"urn:uuid:bogus-uuid": "Patient/p1"}
