@@ -1,21 +1,49 @@
+"use client";
+
+import { SuggestionCard } from "../../../components/SuggestionCard";
+import { $api } from "../../../lib/api";
+import type { DecisionPacket } from "../../../lib/types";
+
 export default function ProviderPacketPage() {
+  const { data, isLoading, isError } = $api.useQuery(
+    "get",
+    "/patients/{patient_id}/packet",
+    { params: { path: { patient_id: "pat-001" } } }
+  );
+
+  if (isLoading) {
+    return (
+      <main>
+        <div className="shell">
+          <p>Loading packet…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <main>
+        <div className="shell">
+          <p>Failed to load packet.</p>
+        </div>
+      </main>
+    );
+  }
+
+  const packet = data as unknown as DecisionPacket;
+
   return (
     <main>
       <div className="shell">
-        <section className="panel card stack">
-          <div>
-            <p className="eyebrow">Provider</p>
-            <h1>Packet shell</h1>
-            <p>
-              This route is reserved for the cited decision packet cards, source chips, and
-              verification status once the backend contract expands.
-            </p>
-          </div>
-          <div className="chip-row">
-            <span className="chip">Hypothesis cards</span>
-            <span className="chip">Citation chips</span>
-            <span className="chip">React Query</span>
-          </div>
+        <section className="stack">
+          {packet.hypotheses.map((hypothesis) => (
+            <SuggestionCard
+              key={hypothesis.id}
+              hypothesis={hypothesis}
+              patientId={packet.patient_id}
+            />
+          ))}
         </section>
       </div>
     </main>
