@@ -149,6 +149,7 @@ class TestForbiddenLanguage:
     @pytest.mark.parametrize(
         "title,why",
         [
+            # Existing canonical violations (causal + direct directive):
             ("", "The bleeding was caused by warfarin."),
             ("", "Discontinue the aspirin."),
             ("", "Consider whether to stop taking metformin."),
@@ -156,6 +157,29 @@ class TestForbiddenLanguage:
             ("", "Warfarin causes bleeding."),
             ("", "The bleeding was due to warfarin."),
             ("The patient must start warfarin", ""),
+            # #75 broadening — recommendation-form directives:
+            ("", "We recommend stopping the warfarin."),
+            ("", "Clinician recommends discontinuing the aspirin."),
+            ("", "Recommended starting a statin."),
+            ("", "Recommending switching to a safer alternative."),
+            # #75 broadening — should + verbed-directive:
+            ("", "Patient should stop the warfarin."),
+            ("", "Should discontinue the offending agent."),
+            ("Should start anticoagulation", ""),
+            ("", "Patient should switch to a safer agent."),
+            # #75 broadening — should-not directives:
+            ("", "Patient should not take aspirin."),
+            ("", "Patient should not use NSAIDs concurrently."),
+            ("", "Patient should not continue warfarin without monitoring."),
+            ("", "Patient should not start a new SSRI here."),
+            # #75 broadening — advise directives:
+            ("", "We advise against the combination."),
+            ("", "Strongly advise stopping the medication."),
+            ("", "Advise starting an alternative."),
+            # #75 broadening — dose directives:
+            ("", "Increase the dose to compensate."),
+            ("", "Decrease the dose by half."),
+            ("", "Reduce the frequency to once daily."),
         ],
     )
     def test_flags_causal_and_directive_language(self, title: str, why: str) -> None:
@@ -165,13 +189,38 @@ class TestForbiddenLanguage:
     @pytest.mark.parametrize(
         "why",
         [
+            # Canonical associational forms must keep passing:
             "Warfarin and aspirin together may be associated with an increased bleeding risk.",
             "This combination is associated with a higher fall risk — consider reviewing.",
             "No specific concern; documentation is incomplete.",
+            # #75 broadening — must NOT regress on these:
+            # bare "increase"/"decrease"/"reduce" without "the dose":
+            "The combination may lead to an increased risk of bleeding.",
+            "An increase in INR was noted in the chart.",
+            "Decreased renal function may amplify the effect.",
+            "There is a reduced clearance of the drug in this patient.",
+            # bare "stop"/"start" outside the verbed directives:
+            "Symptoms reportedly stop within an hour of dosing.",
+            "The start of symptoms preceded the prescription by one week.",
+            # bare "cause" (the noun) — only "caused by"/"causes" (the verb
+            # form ending in -s) are flagged:
+            "The cause is unclear from the documented history.",
+            # NOTE: "Multiple contributing causes may be at play." would false-
+            # positive against \bcauses\b (noun plural). The conservative #79
+            # set accepted that tradeoff — distinguishing verb-causes from
+            # noun-causes deterministically needs the per-clause grounding
+            # work (#75 follow-up).
+            # "consider" without a directive verb is fine:
+            "Consider reviewing the patient's allergy history.",
+            "Worth considering whether the lab gap is material here.",
         ],
     )
     def test_allows_associational_language(self, why: str) -> None:
-        """Must NOT false-positive on valid associational phrasing (e.g. 'increased risk')."""
+        """Must NOT false-positive on valid associational / observational text.
+
+        This is the #75 curation invariant: the conservative phrase set may grow
+        but must never start flagging legit clinical-reasoning prose.
+        """
         h = Hypothesis(
             id="h", title="Bleeding risk", why=why, severity="moderate", confidence="low"
         )
@@ -384,7 +433,15 @@ class TestVerifyCitations:
         result = verify_citations([sample_hypothesis], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_unknown_citation_kind_dropped(self, sample_flattened_text: str) -> None:
+    def test_unknown_citation_kind_taints_whole_hypothesis(
+        self, sample_flattened_text: str
+    ) -> None:
+        """Per-clause grounding (#75): an unknown-kind citation alongside valid
+        citations now drops the whole hypothesis, instead of being silently
+        stripped while the prose survives. Rationale: an unknown/fabricated
+        citation is a tell that the free-text ``why``/``title`` may rely on the
+        fabricated source — keep none rather than surface a half-grounded entry.
+        """
         h = Hypothesis(
             id="hyp-1",
             title="Test",
@@ -392,14 +449,12 @@ class TestVerifyCitations:
             severity="moderate",
             confidence="low",
             citations=[
-                Citation(kind="made_up_kind", ref="anything", label="Should be dropped"),
+                Citation(kind="made_up_kind", ref="anything", label="Hallucinated"),
                 Citation(kind="resource", ref="Condition/c1", label="Valid"),
             ],
         )
         result = verify_citations([h], sample_flattened_text, set())
-        assert len(result) == 1
-        # The unknown kind should be stripped from the output
-        assert all(c.kind in ("resource", "evidence") for c in result[0].citations)
+        assert result == []
 
     def test_all_hypotheses_dropped_when_kind_unknown(self, sample_flattened_text: str) -> None:
         """All citations have unknown kinds → no known citations → passes but empty list."""
@@ -477,6 +532,56 @@ class TestVerifyCitations:
         )
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
+
+    # ── #75 per-clause grounding: unknown-kind taints whole hypothesis ──────
+
+    def test_per_clause_grounding_drops_mixed_known_and_unknown_kinds(
+        self, sample_flattened_text: str
+    ) -> None:
+        """Even one unknown-kind citation taints the hypothesis. Two resolvable
+        resource refs are NOT enough to keep it — the unknown one might back a
+        fabricated claim in the prose."""
+        h = Hypothesis(
+            id="hyp-1",
+            title="Mixed",
+            why="...",
+            severity="moderate",
+            confidence="low",
+            citations=[
+                Citation(kind="resource", ref="Condition/c1", label="Valid 1"),
+                Citation(kind="resource", ref="MedicationStatement/ms-001", label="Valid 2"),
+                Citation(kind="hallucinated_guideline", ref="X", label="Fabricated"),
+            ],
+        )
+        result = verify_citations([h], sample_flattened_text, set())
+        assert result == []
+
+    def test_per_clause_grounding_preserves_clean_hypotheses_in_same_batch(
+        self, sample_flattened_text: str
+    ) -> None:
+        """A batch with one tainted + one clean hypothesis returns only the
+        clean one — the strict gate doesn't poison sibling hypotheses."""
+        tainted = Hypothesis(
+            id="bad",
+            title="bad",
+            why="bad",
+            severity="moderate",
+            confidence="low",
+            citations=[
+                Citation(kind="resource", ref="Condition/c1", label="Valid"),
+                Citation(kind="made_up", ref="x", label="Hallucinated"),
+            ],
+        )
+        clean = Hypothesis(
+            id="good",
+            title="good",
+            why="good",
+            severity="moderate",
+            confidence="low",
+            citations=[Citation(kind="resource", ref="Condition/c1", label="Valid")],
+        )
+        result = verify_citations([tainted, clean], sample_flattened_text, set())
+        assert [h.id for h in result] == ["good"]
 
 
 class TestGetClient:
