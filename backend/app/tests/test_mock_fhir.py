@@ -9,16 +9,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import backend.app.providers.mock_fhir as _mod
 from backend.app.providers.base import ConnectorDataError, ConnectorUnavailable, FetchResult
 from backend.app.providers.mock_fhir import (
-    MockFHIRProvider,
     _KEPT_TYPES,
+    MockFHIRProvider,
     _fetch_raw_entries,
     _load_validators,
     _save_snapshot,
     _trim_and_validate,
 )
-import backend.app.providers.mock_fhir as _mod
 
 # ── shared fakes ─────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ class _SearchSet:
         self._items = items or []
         self._exc = raise_exc
 
-    def search(self, **_kwargs) -> "_SearchSet":
+    def search(self, **_kwargs) -> _SearchSet:
         return self
 
     async def first(self):
@@ -78,7 +78,7 @@ class _PassThrough:
         self._raw = raw
 
     @classmethod
-    def model_validate(cls, raw: dict) -> "_PassThrough":
+    def model_validate(cls, raw: dict) -> _PassThrough:
         return cls(raw)
 
     def model_dump(self, **_kwargs) -> dict:
