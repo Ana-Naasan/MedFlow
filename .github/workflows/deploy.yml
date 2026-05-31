@@ -8,7 +8,7 @@ name: deploy
 # (and once the Docker images are confirmed to build).
 on:
   push:
-    branches: [planning, ha/deployment]
+    branches: [planning]
 
 jobs:
   build-and-deploy:
@@ -25,7 +25,7 @@ jobs:
       BACKEND_SERVICE: umraa-backend
       FRONTEND_SERVICE: umraa-frontend
       GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-      OPENDFA_API_KEY: ${{ secrets.OPENDFA_API_KEY }}
+      OPENFDA_API_KEY: ${{ secrets.OPENFDA_API_KEY }}
       DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +101,7 @@ jobs:
             --image "$AR_BASE/umraa-backend:${{ steps.img.outputs.sha }}" \
             --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
             --platform managed --allow-unauthenticated --port 8080 \
-            --set-env-vars "GOOGLE_GENAI_API_KEY=$GOOGLE_GENAI_API_KEY,OPENDFA_API_KEY=$OPENDFA_API_KEY,DEV_TOKEN=$DEV_TOKEN"
+            --set-env-vars "GOOGLE_GENAI_API_KEY=$GOOGLE_GENAI_API_KEY,OPENFDA_API_KEY=$OPENFDA_API_KEY,DEV_TOKEN=$DEV_TOKEN"
 
       - name: Deploy frontend to Cloud Run
         if: ${{ env.GCP_SA_KEY != '' }}
