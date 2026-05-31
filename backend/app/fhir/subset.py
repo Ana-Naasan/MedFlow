@@ -254,8 +254,8 @@ def reasoning_view(resource: dict[str, Any]) -> dict[str, Any]:
     The following Patient-level fields are **always** stripped:
     ``name``, ``address``, ``telecom``, ``contact``.
 
-    All other resource types pass through unchanged (they have no direct
-    PII-carrying top-level fields in our subset).
+    Non-Patient resources are returned with the same top-level fields, but any nested
+    Patient fragments (e.g. under ``contained``) also have PII keys stripped.
 
     Parameters
     ----------
