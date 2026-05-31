@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — merged PR #45 (#4 DTO/OpenAPI contract DONE) + PR #46 (#9 config-secret guard; #9 stays open pending real keys). #3 Provider ABC also done. PR queue clear.
+Last activity: 2026-05-31 — reviewed + merged PR #47 (#21 drug-knowledge seed data + loaders). #4/#9 contracts already in. One PR (#48, #5 FHIR subset) still open in review.
 
 Progress (Phase 1 / M0): [█████░░░░░] ~50%
 
@@ -19,7 +19,7 @@ Progress (Phase 1 / M0): [█████░░░░░] ~50%
 
 ### Open PRs / In Review
 
-_None — queue clear._
+- #48 (#5 FHIR subset builders + validation + MRN minimization, Mohammad) — under review
 
 ### Done (on `planning`, green)
 
@@ -29,11 +29,13 @@ _None — queue clear._
 - #4 DTO/OpenAPI contract — Citation/Hypothesis/DecisionPacket DTOs + `/packet` stub + regenerated typed client (PR #45). Frontend can now build against the typed client.
 - #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
 - #9 (partial) — required-secret config guard + `.env` placeholders merged (PR #46). #9 stays OPEN until real Gemini/openFDA keys are provisioned in local `.env`.
+- #21 seed data — DDInter (10k interaction pairs), ACB scale, AGS 2023 Beers, Synthea sample FHIR bundle + text-layer clinical PDF vendored to `backend/app/seeds/` with provenance (SOURCES.md) + typed loaders + 26 tests (PR #47). Synthetic data only.
 
 ### Ready / unblocked now
 
 - #5 FHIR subset (Mohammad) — starter posted on the issue; blocks #6, #11
 - #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #28 HL7v2 scaffold (Vivek), #33 observability (Bader)
+- #20 RxNorm normalization, #22 interaction checking, #26 older-adult (Beers/ACB) lookups, #27 PDF connector demo — all unblocked by #21 seed data
 - #9 provisioning (Hamza) — config guard merged; real keys go in local `.env` (`GOOGLE_GENAI_API_KEY`, `OPENFDA_API_KEY`, `DEV_TOKEN`) to unblock the reasoning runtime (#14, #15)
 
 ## Performance Metrics
@@ -90,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-31
-Stopped at: Phase 1 execution underway. PR #44 (#3 Provider ABC) reviewed + cleaned (AI traces stripped), CI green, awaiting 1 teammate approval. STATE synced with open-PR tracking.
+Stopped at: Phase 1 (M0) ~50%. Working the PR queue one at a time with full code+test review before merge. PR #47 (#21 drug-knowledge seeds) reviewed (clean, 26 tests, no AI traces) + merged via owner-admin (squash). PR #48 (#5 FHIR subset) is next in the queue.
 Resume file: None
-Next: land #3 (#44) + #4 to unblock the team; review incoming PRs (code review before merge); move issues across the board as PRs open/merge.
+Next: review PR #48 (#5 FHIR subset builders + validation + MRN minimization) end-to-end, then merge/close. Then pick up Bader's unblocked critical-path issues — #12 cache, #23 Postgres connector, #33 observability. Watch the hour-6 §22 slice gate.
