@@ -96,13 +96,20 @@ _LABEL = {
 
 
 def _route(search: str, count: str | None, is_label: bool) -> dict:
-    """Map a decoded request to the right real-shaped body."""
+    """Map a decoded request to the right real-shaped body.
+
+    Seriousness routing requires a REAL space-delimited ``" AND <flag>"`` — the
+    form openFDA actually parses. A malformed literal ``"+AND+<flag>"`` (the old
+    bug, where httpx percent-encodes the '+') will NOT match here, so it falls
+    through to the main event body and the seriousness assertions fail — i.e. the
+    mock refuses to mask the encoding bug.
+    """
     if is_label:
         return _LABEL
     if count:
         return _COUNT_REACTIONS
     for flag, total in _SERIOUSNESS_TOTALS.items():
-        if flag in search:
+        if f" AND {flag}" in search:
             return _seriousness_total(total)
     return _MAIN_EVENT
 

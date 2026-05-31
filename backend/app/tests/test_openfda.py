@@ -185,6 +185,33 @@ class TestGuards:
 
 class TestTransport:
     @pytest.mark.asyncio
+    async def test_seriousness_query_uses_real_and_operator(self, mock_openfda_factory) -> None:
+        # The wire URL must carry the real "+AND+" delimiter (space-encoded),
+        # NOT a percent-encoded literal "%2BAND%2B" — otherwise openFDA parses
+        # one broken term and the seriousness counts are wrong/absent.
+        seen: list[str] = []
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            from backend.app.tests.conftest import _route
+
+            params = request.url.params
+            body = _route(
+                params.get("search", ""),
+                params.get("count"),
+                request.url.path.endswith("/label.json"),
+            )
+            return httpx.Response(200, json=body)
+
+        mock_openfda_factory(capture)
+        await lookup_adverse_events(rxcui=_RX, limit=2)
+        seriousness_urls = [u for u in seen if "seriousnessdeath" in u]
+        assert seriousness_urls, "no seriousness query was issued"
+        for u in seriousness_urls:
+            assert "+AND+" in u  # real Lucene operator
+            assert "%2BAND%2B" not in u  # not the broken literal-plus form
+
+    @pytest.mark.asyncio
     async def test_cache_hit_avoids_second_fetch(self, mock_openfda_factory) -> None:
         calls = {"n": 0}
 
@@ -304,19 +331,24 @@ class TestTokenBucket:
 
 
 class TestHelpers:
-    def test_escape_value_plain(self) -> None:
-        assert _escape_value("aspirin") == "aspirin"
-
-    def test_escape_value_quotes_multiword(self) -> None:
+    def test_escape_value_always_quotes(self) -> None:
+        assert _escape_value("aspirin") == '"aspirin"'
         assert _escape_value("atorvastatin calcium") == '"atorvastatin calcium"'
 
     def test_escape_value_escapes_quote_and_backslash(self) -> None:
-        assert _escape_value('a"b') == 'a\\"b'
-        assert _escape_value("a\\b") == "a\\\\b"
+        assert _escape_value('a"b') == '"a\\"b"'
+        assert _escape_value("a\\b") == '"a\\\\b"'
 
-    def test_drug_filter_rxcui_vs_generic(self) -> None:
-        assert _drug_filter("openfda", "197885", None) == "openfda.rxcui:197885"
-        assert _drug_filter("openfda", None, "lisinopril") == "openfda.generic_name:lisinopril"
+    def test_escape_value_neutralises_lucene_injection(self) -> None:
+        # A whitespace-free metacharacter payload must NOT survive as bare
+        # operators — it is contained inside the quoted phrase.
+        out = _escape_value("foo) OR (seriousnessdeath:1")
+        assert out.startswith('"') and out.endswith('"')
+        assert _escape_value("a+AND+b") == '"a+AND+b"'  # operators are literal inside quotes
+
+    def test_drug_filter_quotes_values(self) -> None:
+        assert _drug_filter("openfda", "197885", None) == 'openfda.rxcui:"197885"'
+        assert _drug_filter("openfda", None, "lisinopril") == 'openfda.generic_name:"lisinopril"'
 
     def test_first_text_unwraps_final_list(self) -> None:
         assert _first_text({"a": ["x"]}, "a") == "x"

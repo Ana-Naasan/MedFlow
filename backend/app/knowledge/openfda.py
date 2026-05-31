@@ -175,15 +175,17 @@ def _cache_set(key: str, data: dict[str, Any]) -> None:
 
 
 def _escape_value(value: str) -> str:
-    """Escape a value for an openFDA Lucene query.
+    """Quote+escape a value for an openFDA (Lucene/Elasticsearch) query.
 
-    Multi-word values are wrapped in quotes; embedded quotes/backslashes are
-    escaped so a stray character can't corrupt (or inject into) the query.
+    The value is ALWAYS wrapped in double quotes and embedded backslashes/quotes
+    are escaped. Inside a quoted phrase every other Lucene metacharacter
+    (``+ - && || ! ( ) { } [ ] ^ ~ * ? :`` and the ``AND``/``OR`` operators) is
+    treated literally, so a caller-supplied drug name cannot rewrite the query's
+    boolean structure (Lucene injection). Quoting unconditionally — rather than
+    only when whitespace is present — is what closes the no-space injection hole.
     """
     cleaned = value.replace("\\", "\\\\").replace('"', '\\"')
-    if any(c.isspace() for c in cleaned):
-        return f'"{cleaned}"'
-    return cleaned
+    return f'"{cleaned}"'
 
 
 def _drug_filter(field_prefix: str, rxcui: str | None, generic_name: str | None) -> str:
@@ -400,9 +402,12 @@ async def lookup_adverse_events(
     ]
 
     # Real per-seriousness counts (one query each → meta.results.total).
+    # The AND operator MUST be space-delimited: httpx encodes the spaces to '+',
+    # producing openFDA's real "+AND+" delimiter. A literal "+AND+" in the value
+    # would be percent-encoded to "%2BAND%2B" and parsed as one broken term.
     seriousness: dict[str, int] = {}
     for key, flag_field in _SERIOUSNESS_FLAGS.items():
-        body = await _get_json("event", {"search": f"{base}+AND+{flag_field}:1", "limit": 1})
+        body = await _get_json("event", {"search": f"{base} AND {flag_field}:1", "limit": 1})
         count = _meta_total(body)
         if count:
             seriousness[key] = count
