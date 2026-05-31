@@ -223,6 +223,8 @@ def build_procedure(
 # ── Reasoning view (PII-stripped projection) ──────────────────────────────
 
 
+# Deny-list applied to NON-Patient resources: stray demographic PII is removed
+# defensively while clinical content (codes, values, dates, references) survives.
 _PII_KEYS = frozenset(
     {
         "name",
@@ -232,14 +234,14 @@ _PII_KEYS = frozenset(
     }
 )
 
-
-def _strip_pii(obj: Any) -> Any:
-    """Recursively drop PII keys from a FHIR resource dict."""
-    if isinstance(obj, dict):
-        return {k: _strip_pii(v) for k, v in obj.items() if k not in _PII_KEYS}
-    if isinstance(obj, list):
-        return [_strip_pii(item) for item in obj]
-    return obj
+# Fail-closed allow-list for Patient resources: ONLY these source keys are
+# carried into the reasoning view. Everything else — name, address, telecom,
+# contact, text (narrative), photo, communication, maritalStatus,
+# generalPractitioner, managingOrganization, link, meta, and the Synthea
+# identity `extension` array (race / ethnicity / mother's-maiden-name /
+# birthplace) — is dropped, so PHI cannot leak through an un-enumerated field.
+# ageYears (derived) and MRN-only identifier are added/retained separately.
+_PATIENT_SCALAR_KEYS = ("resourceType", "id", "gender")
 
 
 def _compute_age_years(birth_date: Any) -> int | None:
@@ -274,57 +276,57 @@ def _is_mrn_identifier(ident: Any) -> bool:
     return any(isinstance(c, dict) and c.get("code") == "MR" for c in coding)
 
 
-def _apply_patient_minimisation(obj: Any) -> Any:
-    """Recursively walk *obj* and apply Patient minimisation to every
-    dict whose ``resourceType`` is ``"Patient"``.
+def _minimise_patient(patient: dict[str, Any]) -> dict[str, Any]:
+    """Project a Patient resource onto the fail-closed reasoning allow-list.
+
+    Keeps only ``resourceType``/``id``/``gender``, the derived integer
+    ``ageYears`` (from ``birthDate``), and MRN-type ``identifier`` entries.
+    Every other field — including unknown/future ones — is dropped, so PHI
+    cannot leak through an un-enumerated field.
+    """
+    result: dict[str, Any] = {k: patient[k] for k in _PATIENT_SCALAR_KEYS if k in patient}
+    age = _compute_age_years(patient.get("birthDate"))
+    if age is not None:
+        result["ageYears"] = age
+    raw_ids = patient.get("identifier")
+    mrn_ids = [i for i in raw_ids if _is_mrn_identifier(i)] if isinstance(raw_ids, list) else []
+    if mrn_ids:
+        result["identifier"] = mrn_ids
+    return result
+
+
+def _minimise(obj: Any) -> Any:
+    """Recursively minimise a FHIR structure.
+
+    A dict whose ``resourceType`` is ``"Patient"`` is projected onto the
+    fail-closed allow-list; every other dict has the demographic deny-list
+    removed and is rebuilt recursively (so a Patient nested under
+    ``contained`` is still minimised while clinical content is preserved).
+    The input is never mutated — new structures are returned.
     """
     if isinstance(obj, dict):
         if obj.get("resourceType") == "Patient":
-            result = dict(obj)  # shallow copy so we can mutate
-            age = _compute_age_years(result.pop("birthDate", None))
-            if age is not None:
-                result["ageYears"] = age
-            ids = result.pop("identifier", None)
-            if isinstance(ids, list):
-                mrn_ids = [i for i in ids if _is_mrn_identifier(i)]
-                if mrn_ids:
-                    result["identifier"] = mrn_ids
-            # Recurse into remaining values (e.g. contained, author, etc.)
-            return {k: _apply_patient_minimisation(v) for k, v in result.items()}
-        return {k: _apply_patient_minimisation(v) for k, v in obj.items()}
+            return _minimise_patient(obj)
+        return {k: _minimise(v) for k, v in obj.items() if k not in _PII_KEYS}
     if isinstance(obj, list):
-        return [_apply_patient_minimisation(item) for item in obj]
+        return [_minimise(item) for item in obj]
     return obj
-
-
-def _minimize_patient(resource: dict[str, Any]) -> dict[str, Any]:
-    """Apply Patient-specific minimisation to a resource dict.
-
-    1. Strip ``name``, ``address``, ``telecom``, ``contact``.
-    2. Strip ``birthDate`` and inject ``ageYears`` (computed integer).
-    3. Filter ``identifier`` to only MRN-type identifiers.
-
-    Steps 2-3 are applied to **every** Patient resource in the tree
-    (including those under ``contained``).
-    """
-    result = _strip_pii(resource)
-    return _apply_patient_minimisation(result)
 
 
 def reasoning_view(resource: dict[str, Any]) -> dict[str, Any]:
     """Return a PII-free, minimised projection of a FHIR resource for the
     reasoning engine.
 
-    For **Patient** resources the result:
+    **Patient** resources are projected onto a fail-closed allow-list — only
+    ``resourceType``, ``id``, ``gender``, a derived integer ``ageYears`` (from
+    ``birthDate``), and MRN-type ``identifier`` entries survive. Every other
+    field is dropped, so name/address/telecom/contact/text/photo/communication/
+    maritalStatus/``extension`` and any unknown future field cannot leak PHI.
 
-    * drops ``name``, ``address``, ``telecom``, ``contact``
-    * drops ``birthDate`` and adds ``ageYears`` (integer, computed from
-      birth date)
-    * filters ``identifier`` to only keep MRN-type identifiers (code ``"MR"``)
-
-    For all other resource types the output is equivalent to
-    :func:`_strip_pii` (only ``name``/``address``/``telecom``/``contact``
-    are removed).
+    For all other resource types only the demographic deny-list
+    (``name``/``address``/``telecom``/``contact``) is removed, recursively, so
+    a Patient nested under ``contained`` is still minimised while clinical
+    content is preserved.
 
     Parameters
     ----------
@@ -342,17 +344,14 @@ def reasoning_view(resource: dict[str, Any]) -> dict[str, Any]:
     ...     "resourceType": "Patient",
     ...     "id": "p1",
     ...     "name": [{"family": "Smith"}],
+    ...     "gender": "female",
     ...     "birthDate": "1990-01-15",
     ...     "identifier": [{"value": "MRN001", "type": {"coding": [{"code": "MR"}]}}],
     ... }
     >>> view = reasoning_view(raw)
-    >>> "name" in view
+    >>> sorted(view)
+    ['ageYears', 'gender', 'id', 'identifier', 'resourceType']
+    >>> "name" in view or "birthDate" in view
     False
-    >>> "birthDate" in view
-    False
-    >>> view["ageYears"]
-    36
-    >>> view["identifier"]
-    [{'value': 'MRN001', 'type': {'coding': [{'code': 'MR'}]}}]
     """
-    return _minimize_patient(resource)
+    return _minimise(resource)

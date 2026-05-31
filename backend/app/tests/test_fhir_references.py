@@ -67,3 +67,15 @@ class TestResolveReferences:
         data = {"someContainer": {"reference": "urn:uuid:abc-123"}}
         resolved = resolve_references(data, _ID_MAP)
         assert resolved["someContainer"]["reference"] == "Patient/p1"
+
+
+def test_resolution_is_single_pass_not_chained() -> None:
+    """A reference is rewritten exactly once: if the mapped target is itself a
+    key in id_map, it is NOT chased transitively (no infinite-loop / surprise
+    chaining). Pins the single-pass contract."""
+    chained_map = {
+        "urn:uuid:a": "urn:uuid:b",
+        "urn:uuid:b": "Patient/p1",
+    }
+    resolved = resolve_references({"subject": {"reference": "urn:uuid:a"}}, chained_map)
+    assert resolved["subject"]["reference"] == "urn:uuid:b"
