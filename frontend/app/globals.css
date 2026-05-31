@@ -164,6 +164,154 @@ main {
   margin-top: 20px;
 }
 
+/* Severity / confidence badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.badge-severity {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-confidence {
+  background: rgba(140, 90, 61, 0.1);
+  color: #5b3a2e;
+}
+
+/* Interactive chip (button reset + chip styles) */
+button.chip-interactive {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(140, 90, 61, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+button.chip-interactive:hover {
+  background: rgba(140, 90, 61, 0.22);
+}
+
+button.chip-interactive:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 41, 55, 0.45);
+  z-index: 99;
+  animation: backdropIn 150ms ease-out;
+}
+
+/* Citation modal */
+dialog.citation-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  padding: 28px;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  background: #fff;
+  box-shadow:
+    0 4px 16px rgba(31, 41, 55, 0.08),
+    0 24px 64px rgba(31, 41, 55, 0.2);
+  z-index: 100;
+  margin: 0;
+  animation: modalIn 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Skeleton loader for citation fetch */
+.citation-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 16px;
+}
+
+.skeleton-line {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(140, 90, 61, 0.06) 25%,
+    rgba(140, 90, 61, 0.14) 50%,
+    rgba(140, 90, 61, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-line-short {
+  width: 55%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+    background: rgba(140, 90, 61, 0.08);
+  }
+
+  dialog.citation-modal,
+  .modal-backdrop {
+    animation: none;
+  }
+}
+
+.citation-modal-source {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.citation-modal-snippet {
+  margin: 0 0 20px;
+  line-height: 1.65;
+  color: var(--foreground);
+  font-size: 0.95rem;
+}
+
+.citation-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 900px) {
   .hero,
   .split {

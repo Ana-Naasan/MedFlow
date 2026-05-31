@@ -14,6 +14,7 @@ import datetime
 import pytest
 
 from backend.app.cache.store import (
+    build_packet,
     get_evidence_card,
     get_patient_resource,
 )
@@ -185,6 +186,12 @@ def test_get_patient_resource_unknown_resource() -> None:
 
 def test_get_evidence_card_unknown() -> None:
     assert get_evidence_card("does-not-exist") is None
+
+
+def test_build_packet_demo_001_returns_hypotheses() -> None:
+    packet = build_packet("DEMO-001")
+    assert packet.patient_id == "DEMO-001"
+    assert len(packet.hypotheses) >= 1
 
 
 def test_get_evidence_card_missing_anchor_patient(monkeypatch: pytest.MonkeyPatch) -> None:

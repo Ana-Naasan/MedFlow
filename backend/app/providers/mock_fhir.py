@@ -227,12 +227,18 @@ class MockFHIRProvider(Provider):
         snapshot_path: Path | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._snapshot_path = snapshot_path if snapshot_path is not None else _DEFAULT_SNAPSHOT
+        self._snapshot_path = snapshot_path  # None → per-patient discovery via _find_snapshot
 
     async def fetch_patient(self, patient_id: str) -> FetchResult:
-        if self._snapshot_path.exists():
-            return self._load_snapshot(patient_id)
+        snap = self._snapshot_path or self._find_snapshot(patient_id)
+        if snap.exists():
+            return self._load_snapshot(patient_id, snap)
         return await self._fetch_live(patient_id)
+
+    def _find_snapshot(self, patient_id: str) -> Path:
+        """Return per-patient snapshot path if present, otherwise the default snapshot."""
+        candidate = _SEEDS_DIR / f"{patient_id}_fhir_snapshot.json"
+        return candidate if candidate.exists() else _DEFAULT_SNAPSHOT
 
     async def health_check(self) -> HealthStatus:
         t0 = time.monotonic()
@@ -269,16 +275,15 @@ class MockFHIRProvider(Provider):
             "type": "searchset",
             "entry": [{"resource": r} for r in validated],
         }
-        _save_snapshot(self._snapshot_path, bundle)
+        _save_snapshot(self._snapshot_path or _DEFAULT_SNAPSHOT, bundle)
         return _make_result(bundle, patient_id, self.id, warnings)
 
-    def _load_snapshot(self, patient_id: str) -> FetchResult:
+    def _load_snapshot(self, patient_id: str, path: Path | None = None) -> FetchResult:
+        snap = path or self._snapshot_path or _DEFAULT_SNAPSHOT
         try:
-            bundle = json.loads(self._snapshot_path.read_text())
+            bundle = json.loads(snap.read_text())
         except Exception as exc:
-            raise ConnectorDataError(
-                f"Cannot read snapshot at {self._snapshot_path}: {exc}"
-            ) from exc
+            raise ConnectorDataError(f"Cannot read snapshot at {snap}: {exc}") from exc
         return _make_result(
             bundle,
             patient_id,
