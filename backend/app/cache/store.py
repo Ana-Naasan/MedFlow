@@ -367,3 +367,25 @@ def get_evidence_card(evidence_id: str) -> dict[str, object] | None:
         if card is not None:
             return deepcopy(card)
     return None
+
+
+def get_patient_resources(patient_id: str) -> list[dict[str, object]]:
+    """Return every FHIR resource dict for a patient (empty list if unknown).
+
+    Feeds the reasoning pipeline's flattener; the per-citation lookups still go
+    through ``get_patient_resource`` so the cache stays the authority.
+    """
+    patient = STATIC_PATIENTS.get(patient_id)
+    if patient is None:
+        return []
+    resources = patient["resources"]
+    return [deepcopy(r) for r in resources.values()]
+
+
+def get_evidence_cards(patient_id: str) -> list[dict[str, object]]:
+    """Return every evidence card dict for a patient (empty list if unknown)."""
+    patient = STATIC_PATIENTS.get(patient_id)
+    if patient is None:
+        return []
+    evidence = patient.get("evidence", {})
+    return [deepcopy(c) for c in evidence.values()]

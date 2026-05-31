@@ -490,6 +490,14 @@ class TestGetClient:
             with pytest.raises(KeyError, match="GOOGLE_GENAI_API_KEY"):
                 _get_client()
 
+    def test_blank_key_raises_keyerror_not_valueerror(self) -> None:
+        # A present-but-empty key must be treated as "unset" — a uniform KeyError
+        # abstention signal — rather than reaching Client(api_key="") which raises
+        # ValueError (which the orchestrator would not catch → HTTP 500).
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": ""}, clear=True):
+            with pytest.raises(KeyError, match="GOOGLE_GENAI_API_KEY"):
+                _get_client()
+
 
 # ── run_reasoning (golden path with mocked Gemini) ─────────────────────────
 

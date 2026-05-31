@@ -16,7 +16,9 @@ import pytest
 from backend.app.cache.store import (
     build_packet,
     get_evidence_card,
+    get_evidence_cards,
     get_patient_resource,
+    get_patient_resources,
 )
 from backend.app.fhir.flatten import (
     _concept,
@@ -226,6 +228,26 @@ def test_get_evidence_card_missing_anchor_patient(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(store, "STATIC_PATIENTS", {})
     assert store.get_evidence_card("anything") is None
+
+
+def test_get_patient_resources_returns_resource_dicts() -> None:
+    resources = get_patient_resources("pat-001")
+    assert isinstance(resources, list)
+    assert any(r["resourceType"] == "MedicationStatement" for r in resources)
+
+
+def test_get_patient_resources_unknown_patient() -> None:
+    assert get_patient_resources("nope") == []
+
+
+def test_get_evidence_cards_returns_card_dicts() -> None:
+    cards = get_evidence_cards("pat-001")
+    assert isinstance(cards, list)
+    assert any(c["id"] == "ddinter-aspirin-warfarin" for c in cards)
+
+
+def test_get_evidence_cards_unknown_patient() -> None:
+    assert get_evidence_cards("nope") == []
 
 
 # ── fhir.subset reasoning_view edge cases ───────────────────────────────────
