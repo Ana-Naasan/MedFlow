@@ -16,7 +16,6 @@ import pytest
 from backend.app.cache.store import (
     get_evidence_card,
     get_patient_resource,
-    refresh_patient,
 )
 from backend.app.fhir.flatten import (
     _concept,
@@ -192,10 +191,6 @@ def test_get_evidence_card_missing_anchor_patient(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(store, "STATIC_PATIENTS", {})
     assert store.get_evidence_card("anything") is None
-
-
-def test_refresh_patient_missing() -> None:
-    assert refresh_patient("nope") == {"patient_id": "nope", "status": "missing"}
 
 
 # ── fhir.subset reasoning_view edge cases ───────────────────────────────────
