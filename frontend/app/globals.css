@@ -513,6 +513,56 @@ mark.pdf-highlight-mark {
   font-size: 0.85rem;
 }
 
+/* Packet-load failure panel (#90): explicit diagnostic surface so the
+   operator sees status / URL / body on the page instead of a generic
+   "Failed to load packet." */
+.packet-failure {
+  margin: 24px 0;
+  padding: 24px;
+}
+
+.packet-failure-title {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  color: #b91c1c;
+}
+
+.packet-failure-hint {
+  margin: 0 0 16px;
+  color: var(--foreground);
+  line-height: 1.55;
+}
+
+.packet-failure-diag {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.packet-failure-diag dt {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.packet-failure-diag dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.packet-failure-body {
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(31, 41, 55, 0.06);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow: auto;
+}
+
 /* Completeness indicator panel */
 .completeness-panel {
   position: sticky;

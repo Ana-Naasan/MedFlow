@@ -9,15 +9,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // only the network client and the data query are stubbed.
 const POST = vi.fn();
 vi.mock("../lib/api", () => ({
-  $api: { useQuery: vi.fn() },
   apiClient: { POST: (...args: unknown[]) => POST(...args) },
 }));
+vi.mock("../lib/usePacket", async () => {
+  const actual = await vi.importActual<typeof import("../lib/usePacket")>(
+    "../lib/usePacket",
+  );
+  return {
+    ...actual,
+    usePacket: vi.fn(),
+  };
+});
 vi.mock("../components/CitationChip", () => ({
   CitationChip: () => null,
 }));
 
-import { $api } from "../lib/api";
 import Page from "../app/(provider)/packet/page";
+import { usePacket } from "../lib/usePacket";
 
 const packet = {
   patient_id: "pat-001",
@@ -45,10 +53,11 @@ const packet = {
 };
 
 beforeEach(() => {
-  vi.mocked($api.useQuery).mockReturnValue({
+  vi.mocked(usePacket).mockReturnValue({
     data: packet,
     isLoading: false,
     isError: false,
+    error: null,
   } as never);
   POST.mockReset();
 });

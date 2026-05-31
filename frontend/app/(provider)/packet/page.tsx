@@ -3,18 +3,16 @@
 import { useCallback, useRef, useState } from "react";
 import { CompletenessIndicator } from "../../../components/CompletenessIndicator";
 import { DataGapsBanner } from "../../../components/DataGapsBanner";
+import { PacketLoadFailurePanel } from "../../../components/PacketLoadFailurePanel";
 import { SuggestionCard } from "../../../components/SuggestionCard";
-import { $api, apiClient } from "../../../lib/api";
+import { apiClient } from "../../../lib/api";
 import type { DecisionPacket } from "../../../lib/types";
+import { PacketLoadError, usePacket } from "../../../lib/usePacket";
 
 type ResolvedStatus = "confirmed" | "dismissed";
 
 export default function ProviderPacketPage() {
-  const { data, isLoading, isError } = $api.useQuery(
-    "get",
-    "/patients/{patient_id}/packet",
-    { params: { path: { patient_id: "pat-001" } } }
-  );
+  const { data, isLoading, isError, error } = usePacket("pat-001");
 
   const [resolved, setResolved] = useState<Record<string, ResolvedStatus>>({});
   // In-flight action ids. A Set (not a single slot) so concurrent actions on
@@ -142,13 +140,14 @@ export default function ProviderPacketPage() {
   }
 
   if (isError || !data) {
-    return (
-      <main>
-        <div className="shell">
-          <p>Failed to load packet.</p>
-        </div>
-      </main>
-    );
+    // The diagnostic-bearing PacketLoadError is the expected failure shape;
+    // a missing-data fall-through (no error object) still gets a panel so
+    // the operator isn't left with a blank page.
+    const diag =
+      error instanceof PacketLoadError
+        ? error.diag
+        : { status: undefined, body: null, url: "", elapsedMs: 0 };
+    return <PacketLoadFailurePanel diag={diag} />;
   }
 
   const completeness = packet!.completeness ?? [];
