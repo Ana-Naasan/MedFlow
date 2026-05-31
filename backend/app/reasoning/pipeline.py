@@ -69,23 +69,24 @@ async def build_reasoned_packet(
         # non-static (e.g. intake) patient's default scaffold can carry a citation
         # that does not resolve for them, so run the scaffold through the
         # cache-authoritative gate rather than serving it raw. If nothing resolves
-        # it abstains (citation-free); otherwise completeness is restored (the
-        # verifier rebuilds the packet without that field).
-        checked = verify_packet(
+        # it abstains (citation-free). verify_packet already preserves
+        # completeness, so the surviving-hypotheses branch returns it directly.
+        return verify_packet(
             scaffold,
             resource_lookup=resource_lookup,
             evidence_lookup=evidence_lookup,
             pdf_pages=pdf_pages,
         )
-        if not checked.hypotheses:
-            return checked
-        return checked.model_copy(update={"completeness": list(scaffold.completeness)})
 
     try:
         hypotheses = await run_reasoning(flattened, evidence, model=model)
-    except KeyError:
-        # _get_client reads GOOGLE_GENAI_API_KEY at call time and raises KeyError
-        # (unset or blank) OUTSIDE run_reasoning's try/except — treat as abstention.
+    except Exception:
+        # REASON-08 / always-servable guarantee: ANY reasoning failure abstains to
+        # the citation-safe scaffold rather than 500-ing. run_reasoning builds the
+        # client + prompt OUTSIDE its own try/except (a missing GOOGLE_GENAI_API_KEY
+        # raises KeyError; the SDK can raise TimeoutError / ValueError /
+        # ValidationError), so the guard here must be broad. The scaffold path is
+        # still citation-gated below, so abstaining never weakens the safety bar.
         hypotheses = []
 
     if not hypotheses:
@@ -105,6 +106,7 @@ async def build_reasoned_packet(
         # Cache-authoritative gate dropped everything → abstain to the scaffold.
         return _verified_scaffold()
 
-    # verify_packet rebuilds the packet without the completeness field; restore it
-    # so the "what's missing" view survives the live path.
+    # verify_packet preserves completeness, but the live path swaps in the
+    # model's hypotheses + REASONED_SUMMARY over the scaffold, so re-assert the
+    # scaffold's completeness to guarantee the "what's missing" view survives.
     return verified.model_copy(update={"completeness": list(scaffold.completeness)})
