@@ -43,5 +43,6 @@ jobs:
           npm ci
           npm run lint --if-present
           npx --no-install tsc --noEmit
-          npm test --if-present -- --ci --watchAll=false
+          # `npm test` is `vitest run` (single-shot, CI-appropriate) — no Jest flags
+          npm test --if-present
           npm run build
