@@ -91,6 +91,73 @@ def test_dismiss_writes_audit_and_hides_similar_by_group():
     assert len(events) == 1
 
 
+def test_confirm_is_idempotent_no_duplicate_audit():
+    """Confirming an already-confirmed hypothesis is a no-op: status stays
+    confirmed and no second audit event is written."""
+    with TestClient(app):
+        factory = app.state.session_factory
+
+        async def _run_inner():
+            async with factory() as session:
+                async with session.begin():
+                    await repo.upsert_hypothesis(
+                        session, id="hyp-idem-c", patient_id="pat-idem-c", title="T"
+                    )
+                    await repo.confirm_hypothesis(
+                        session, id="hyp-idem-c", actor="doctor", patient_id="pat-idem-c"
+                    )
+                    again = await repo.confirm_hypothesis(
+                        session, id="hyp-idem-c", actor="doctor", patient_id="pat-idem-c"
+                    )
+                    result = await session.execute(
+                        select(AuditEvent).where(AuditEvent.resource_ref == "hypothesis/hyp-idem-c")
+                    )
+                    events = result.scalars().all()
+            return again, events
+
+        again, events = asyncio.run(_run_inner())
+    assert again is not None
+    assert again.status == "confirmed"
+    assert len(events) == 1  # the second confirm wrote no duplicate audit
+
+
+def test_dismiss_is_idempotent_no_duplicate_audit():
+    """Re-dismissing still returns the dismissed set (endpoint stays 200) but
+    writes no duplicate audit event."""
+    with TestClient(app):
+        factory = app.state.session_factory
+
+        async def _run_inner():
+            async with factory() as session:
+                async with session.begin():
+                    await repo.upsert_hypothesis(
+                        session,
+                        id="hyp-idem-d",
+                        patient_id="pat-idem-d",
+                        title="T",
+                        group="g:idem",
+                    )
+                    first = await repo.dismiss_hypothesis(
+                        session, id="hyp-idem-d", actor="doctor", patient_id="pat-idem-d"
+                    )
+                    second = await repo.dismiss_hypothesis(
+                        session, id="hyp-idem-d", actor="doctor", patient_id="pat-idem-d"
+                    )
+                    result = await session.execute(
+                        select(AuditEvent).where(
+                            AuditEvent.event_type == "hypothesis_dismissed",
+                            AuditEvent.patient_id == "pat-idem-d",
+                        )
+                    )
+                    events = result.scalars().all()
+            return first, second, events
+
+        first, second, events = asyncio.run(_run_inner())
+    assert "hyp-idem-d" in first
+    assert set(second) == set(first)  # re-dismiss returns the dismissed set (200, not 404)
+    assert len(events) == 1  # but no duplicate audit
+
+
 def test_dismiss_falls_back_to_title_when_no_group():
     with TestClient(app):
         factory = app.state.session_factory

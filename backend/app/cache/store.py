@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from backend.app.dtos import Citation, DecisionPacket, Hypothesis
+from backend.app.dtos import CategoryCompleteness, Citation, DecisionPacket, Hypothesis
+from backend.app.fhir.data_gaps import apply_gap_downgrades
+
+# ── Static patient data ───────────────────────────────────────────────────────
+#
+# Resources that carry a "span" key originate from a PDF connector.
+# span = {page: int, start: int, end: int, snippet: str}
+# The /resource endpoint returns this key verbatim so the frontend can render
+# the PDF highlight view.
 
 STATIC_PATIENTS: dict[str, dict[str, object]] = {
     "pat-001": {
@@ -55,6 +63,64 @@ STATIC_PATIENTS: dict[str, dict[str, object]] = {
                 "identifier": [{"system": "urn:mrn", "value": "MRN-DEMO-001"}],
                 "gender": "female",
                 "birthDate": "1942-03-15",
+            },
+            # PDF-sourced medications — span mirrors the planted PDF fixture offsets.
+            ("MedicationStatement", "med-warfarin"): {
+                "resourceType": "MedicationStatement",
+                "id": "med-warfarin",
+                "status": "active",
+                "medicationCodeableConcept": {"text": "Warfarin"},
+                "subject": {"reference": "Patient/DEMO-001"},
+                "dosage": [{"text": "5 mg oral daily"}],
+                "span": {
+                    "page": 2,
+                    "start": 143,
+                    "end": 183,
+                    "snippet": "Warfarin 5 mg oral Anticoagulant Daily",
+                },
+            },
+            ("MedicationStatement", "med-aspirin"): {
+                "resourceType": "MedicationStatement",
+                "id": "med-aspirin",
+                "status": "active",
+                "medicationCodeableConcept": {"text": "Aspirin"},
+                "subject": {"reference": "Patient/DEMO-001"},
+                "dosage": [{"text": "81 mg oral daily"}],
+                "span": {
+                    "page": 2,
+                    "start": 184,
+                    "end": 220,
+                    "snippet": "Aspirin 81 mg oral Antiplatelet Daily",
+                },
+            },
+            ("MedicationStatement", "med-amitriptyline"): {
+                "resourceType": "MedicationStatement",
+                "id": "med-amitriptyline",
+                "status": "active",
+                "medicationCodeableConcept": {"text": "Amitriptyline"},
+                "subject": {"reference": "Patient/DEMO-001"},
+                "dosage": [{"text": "25 mg oral nightly"}],
+                "span": {
+                    "page": 2,
+                    "start": 221,
+                    "end": 263,
+                    "snippet": "Amitriptyline 25 mg oral Depression Nightly",
+                },
+            },
+            # PDF-sourced condition
+            ("Condition", "condition-i48-0"): {
+                "resourceType": "Condition",
+                "id": "condition-i48-0",
+                "code": {
+                    "coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": "I48.0"}],
+                    "text": "Atrial fibrillation",
+                },
+                "span": {
+                    "page": 1,
+                    "start": 245,
+                    "end": 283,
+                    "snippet": "1. Atrial fibrillation (I48.0)",
+                },
             },
         },
         "evidence": {
@@ -115,64 +181,115 @@ def build_packet(patient_id: str) -> DecisionPacket:
 
 
 def _build_demo_001_packet() -> DecisionPacket:
+    # Authored at maximum suspected confidence; the data_gaps gate below
+    # downgrades both medication-citing hypotheses one step because the
+    # patient record has no AllergyIntolerance or Observation resources
+    # (issue #30: never claim safety from absence).
+    hypotheses = [
+        Hypothesis(
+            id="hyp-DEMO-001-bleeding",
+            title="Warfarin + Aspirin co-prescription with supratherapeutic INR",
+            why=(
+                "Patient is on warfarin (INR 3.2 — above the 2.0–3.0 target) and aspirin "
+                "81 mg concurrently. DDInter classifies this as a Major interaction. Aspirin "
+                "displaces warfarin from protein binding and adds antiplatelet effect, "
+                "compounding bleed risk."
+            ),
+            severity="high",
+            confidence="high",
+            group="drug:warfarin+aspirin;risk:bleeding",
+            citations=[
+                Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
+                Citation(
+                    kind="resource",
+                    ref="MedicationStatement/med-warfarin",
+                    label="Warfarin (PDF)",
+                ),
+                Citation(
+                    kind="resource",
+                    ref="MedicationStatement/med-aspirin",
+                    label="Aspirin (PDF)",
+                ),
+                Citation(
+                    kind="evidence",
+                    ref="ddinter-warfarin-aspirin",
+                    label="DDInter warfarin-aspirin (Major)",
+                ),
+                Citation(
+                    kind="evidence",
+                    ref="openfda-warfarin-interactions",
+                    label="openFDA warfarin label",
+                ),
+            ],
+        ),
+        Hypothesis(
+            id="hyp-DEMO-001-anticholinergic",
+            title="Amitriptyline in elderly — high anticholinergic burden",
+            why=(
+                "Amitriptyline has an ACB score of 3 (highest tier). AGS Beers Criteria 2023 "
+                "explicitly recommends avoiding tricyclic antidepressants in adults 65+ due to "
+                "risk of cognitive impairment, falls, and delirium. Patient is 82 years old."
+            ),
+            severity="moderate",
+            confidence="high",
+            group="drug:amitriptyline;risk:anticholinergic",
+            citations=[
+                Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
+                Citation(
+                    kind="resource",
+                    ref="MedicationStatement/med-amitriptyline",
+                    label="Amitriptyline (PDF)",
+                ),
+                Citation(
+                    kind="evidence",
+                    ref="beers-amitriptyline-anticholinergic",
+                    label="AGS Beers Criteria 2023 — amitriptyline",
+                ),
+            ],
+        ),
+    ]
+    # Labs (Observation) and Allergies (AllergyIntolerance) are safety-critical
+    # gaps for this patient — drop med-citing hypotheses one rung on the ladder.
+    hypotheses = apply_gap_downgrades(
+        hypotheses, gap_fhir_types={"AllergyIntolerance", "Observation"}
+    )
     return DecisionPacket(
         patient_id="DEMO-001",
         summary_markdown=(
             "### Clinical Alerts — Eleanor Smith (82F)\n"
-            "- **High risk:** Warfarin + Aspirin co-prescription → major bleeding risk "
-            "(INR 3.2, above therapeutic range). Immediate review recommended.\n"
+            "- **Suspected high risk:** Warfarin + Aspirin co-prescription → major bleeding risk "
+            "(INR 3.2 noted in narrative, structured lab confirmation pending). Confidence "
+            "downgraded one step — verify allergy history and connect lab system before acting.\n"
             "- **Moderate risk:** Amitriptyline in elderly patient → Anticholinergic Cognitive "
-            "Burden score 3 (Beers Criteria 2023). Consider safer alternative."
+            "Burden score 3 (Beers Criteria 2023). Confidence downgraded pending allergy/lab "
+            "verification; consider safer alternative."
         ),
-        hypotheses=[
-            Hypothesis(
-                id="hyp-DEMO-001-bleeding",
-                title="Warfarin + Aspirin co-prescription with supratherapeutic INR",
-                why=(
-                    "Patient is on warfarin (INR 3.2 — above the 2.0–3.0 target) and aspirin "
-                    "81 mg concurrently. DDInter classifies this as a Major interaction. Aspirin "
-                    "displaces warfarin from protein binding and adds antiplatelet effect, "
-                    "compounding bleed risk."
-                ),
-                severity="high",
-                confidence="high",
-                group="drug:warfarin+aspirin;risk:bleeding",
-                citations=[
-                    Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
-                    Citation(
-                        kind="evidence",
-                        ref="ddinter-warfarin-aspirin",
-                        label="DDInter warfarin-aspirin (Major)",
-                    ),
-                    Citation(
-                        kind="evidence",
-                        ref="openfda-warfarin-interactions",
-                        label="openFDA warfarin label",
-                    ),
-                ],
+        hypotheses=hypotheses,
+        data_gaps=[
+            "INR result noted in narrative but no structured lab source connected",
+            "Allergy history not documented",
+            "Surgical/procedure history not available",
+        ],
+        completeness=[
+            CategoryCompleteness(category="Patient", documented=True),
+            CategoryCompleteness(category="Medications", documented=True),
+            CategoryCompleteness(category="Conditions", documented=True),
+            CategoryCompleteness(
+                category="Labs",
+                documented=False,
+                gap_note="INR result noted but no structured lab source — connect lab system",
             ),
-            Hypothesis(
-                id="hyp-DEMO-001-anticholinergic",
-                title="Amitriptyline in elderly — high anticholinergic burden",
-                why=(
-                    "Amitriptyline has an ACB score of 3 (highest tier). AGS Beers Criteria 2023 "
-                    "explicitly recommends avoiding tricyclic antidepressants in adults 65+ due to "
-                    "risk of cognitive impairment, falls, and delirium. Patient is 82 years old."
-                ),
-                severity="moderate",
-                confidence="high",
-                group="drug:amitriptyline;risk:anticholinergic",
-                citations=[
-                    Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
-                    Citation(
-                        kind="evidence",
-                        ref="beers-amitriptyline-anticholinergic",
-                        label="AGS Beers Criteria 2023 — amitriptyline",
-                    ),
-                ],
+            CategoryCompleteness(
+                category="Allergies",
+                documented=False,
+                gap_note="No allergy documentation found — verify with patient",
+            ),
+            CategoryCompleteness(
+                category="Procedures",
+                documented=False,
+                gap_note="Surgical and procedure history not documented",
             ),
         ],
-        data_gaps=["Renal function labs not available", "Current pain management plan unclear"],
         cache_status="HIT",
     )
 
@@ -207,6 +324,30 @@ def _build_default_packet(patient_id: str) -> DecisionPacket:
             )
         ],
         data_gaps=["Renal function labs missing"],
+        completeness=[
+            CategoryCompleteness(category="Patient", documented=True),
+            CategoryCompleteness(category="Medications", documented=True),
+            CategoryCompleteness(
+                category="Conditions",
+                documented=False,
+                gap_note="No condition documentation found — request discharge summary",
+            ),
+            CategoryCompleteness(
+                category="Labs",
+                documented=False,
+                gap_note="Renal function labs not available — order BMP/CMP",
+            ),
+            CategoryCompleteness(
+                category="Allergies",
+                documented=False,
+                gap_note="Allergy history not provided — verify with patient",
+            ),
+            CategoryCompleteness(
+                category="Procedures",
+                documented=False,
+                gap_note="Procedure history not available",
+            ),
+        ],
         cache_status="HIT",
     )
 
@@ -233,8 +374,9 @@ def get_patient_resource(
 
 
 def get_evidence_card(evidence_id: str) -> dict[str, object] | None:
-    patient = STATIC_PATIENTS.get("pat-001")
-    if patient is None:
-        return None
-    evidence = patient["evidence"].get(evidence_id)
-    return deepcopy(evidence) if evidence is not None else None
+    for patient in STATIC_PATIENTS.values():
+        evidence = patient.get("evidence", {})
+        card = evidence.get(evidence_id)
+        if card is not None:
+            return deepcopy(card)
+    return None

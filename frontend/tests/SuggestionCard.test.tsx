@@ -55,4 +55,37 @@ describe("SuggestionCard", () => {
     render(<SuggestionCard hypothesis={mockHypothesis} patientId="pat-001" />);
     expect(screen.getByText("Possible medication-related bleeding risk")).toBeInTheDocument();
   });
+
+  it("does not render action buttons when no callbacks are provided", () => {
+    render(<SuggestionCard hypothesis={mockHypothesis} patientId="pat-001" />);
+    expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /dismiss/i })).not.toBeInTheDocument();
+  });
+
+  it("renders Approve and Dismiss buttons when callbacks are provided", () => {
+    render(
+      <SuggestionCard
+        hypothesis={mockHypothesis}
+        patientId="pat-001"
+        onConfirm={vi.fn()}
+        onDismiss={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: /approve/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /dismiss/i })).toBeInTheDocument();
+  });
+
+  it("shows resolved status and hides buttons when status is set", () => {
+    render(
+      <SuggestionCard
+        hypothesis={mockHypothesis}
+        patientId="pat-001"
+        onConfirm={vi.fn()}
+        onDismiss={vi.fn()}
+        status="confirmed"
+      />
+    );
+    expect(screen.getByText(/✓ Approved/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
+  });
 });

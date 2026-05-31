@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-31T10:35:24.091Z",
+  "phase": "1-2",
+  "phase_name": "Issue-driven merge-queue (M0 done; M1 reasoning core landed; widening into M1/M2/M3)",
+  "phase_dir": ".planning/phases/02-hour-6-vertical-slice-m1",
+  "status": "paused",
+  "context": "issue-driven PR merge-queue (no GSD phase PLAN.md by design); branch=planning",
+  "branch": "planning",
+  "commit": "0d3729b",
+  "planning_synced": true,
+  "merged_this_session": [
+    {"pr": 59, "what": "PDF connector (CONN-04) — MedicationStatement + dose-reaches-reasoning + provenance fixes", "issue": 27},
+    {"pr": 62, "what": "Claude auto-review GitHub Action", "issue": null},
+    {"pr": 70, "what": "auto-review every non-draft PR (reopened+ready_for_review triggers)", "issue": null},
+    {"pr": 63, "what": "observability (logging + partial-data helpers) + SEC-02 warning-leak fix", "issue": 33},
+    {"pr": 68, "what": "deployment — OPENFDA typo + planning-only trigger; Cloud Run LIVE", "issue": 35},
+    {"pr": 72, "what": "Gemini reasoning core + deterministic citation verifier (hardened via adversarial review)", "issue": 15},
+    {"pr": 76, "what": "demo patient + intake/hypotheses endpoints", "issue": 18},
+    {"pr": 77, "what": "cache-authoritative citation verifier safety gate", "issue": 16}
+  ],
+  "ai_artifacts": [
+    ".planning/phases/02-hour-6-vertical-slice-m1/02-AI-SPEC.md (reasoning-core design/eval/guardrail contract)",
+    ".planning/phases/02-hour-6-vertical-slice-m1/02-EVAL-REVIEW.md (47/100 SIGNIFICANT GAPS)"
+  ],
+  "open_prs": [
+    {"number": 79, "title": "deterministic output-language guard (mine)", "state": "OPEN — DO NOT TOUCH/MERGE. Bader said he 'already has something working on 79'; likely a duplicate. Decide with Bader whether to close it."},
+    {"number": 78, "title": "RxNav drug-name resolution (Mohammad)", "state": "OPEN — Mohammad actively finishing it. I reconciled + black/ruff-fixed and posted a punch-list (PR #78 comment): 2 F841 unused vars in test_non_dict_item_in_props_skipped + 9 uncovered lines in app/knowledge/rxnav.py (79-81 _get_client lazy-init, 109 no-candidates, 137-138 non-dict skip, 155-157 _fetch_ingredient IN-group). Lint/format already green; just coverage left."},
+    {"number": 71, "title": "old intake app (Hamza)", "state": "OPEN — SUPERSEDED by #76 (merged). Commented recommending close. Not blocking anyone."}
+  ],
+  "open_follow_up_issues": [
+    {"number": 73, "what": "surface partial-data notice into /packet response + UI (blocked on reasoning-core wiring)"},
+    {"number": 75, "what": "deterministic prose-language guard (PR #79 = first slice) + per-clause grounding + WIRE run_reasoning INTO /packet (EVAL-REVIEW #1 blocker — /packet still serves the cache/store.py stub)"},
+    {"number": 65, "what": "openFDA hardening"},
+    {"number": 66, "what": "cache->API hardening"},
+    {"number": 67, "what": "PostgresProvider hardening"}
+  ],
+  "human_actions_pending": [
+    {"action": "Decide whether to close PR #79 (Bader has his own version of the output-language guard)", "context": "avoid duplicate work", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Per-PR merge-gate: reconcile (merge planning) -> full gate on py3.12 (/tmp/umraa-py312) -> Claude deep-review/adversarial workflow for correctness-critical -> fix-forward -> admin squash-merge -> close + move Project card to Done -> reset --hard origin/planning -> doc-sync", "rationale": "user-directed; Copilot errors on most PRs so Claude is the reviewer"},
+    {"decision": "Opus for EVERY agent/workflow; code-review depth deep", "rationale": "user mandate"},
+    {"decision": "Adversarial review workflow is mandatory for correctness-critical code (connectors->FHIR, verifier, reasoning core) — it has repeatedly caught real defects 100% coverage masked", "rationale": "proven on #59 (dose drop) and #72 (5xx crash, drop-all, forged-citation, output-language)"}
+  ],
+  "blockers": [],
+  "uncommitted_files": [],
+  "next_action": "Confirm with Bader: close PR #79 or keep? Then resume the queue under his merge preferences. Highest-value remaining work = #75: WIRE run_reasoning INTO /packet (it currently has NO production caller — /packet serves the static cache/store.py stub; the whole reasoning core + verifier run on zero requests). Then #78 lands when Mohammad finishes coverage; close #71.",
+  "context_notes": "MERGE PREFERENCE IS NUANCED: Bader said 'stop doing prs for now' then overrode it with 'unblock my teammates' (so I merged #76/#77). Default to NOT merging without an explicit go; unblocking teammates was a one-time authorization. PROCESS REMINDERS: coverage ONLY on py3.12; CI runs ruff+black BEFORE pytest (lint fails first); git fetch && reset --hard origin/planning after every merge; NO AI-trace watermarks ('claude' as the Action product name is fine); teammates push to PR branches mid-review (git pull before pushing); the review Action skips self-modifying-workflow PRs by design; a Projects automation occasionally re-flips a closed card to In review (re-set to Done). Cloud Run deploy is LIVE (DEPLOY_ENABLED=true) — every planning push deploys; even doc pushes redeploy (a deploy.yml paths: filter is a backlog item)."
+}

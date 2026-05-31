@@ -27,7 +27,7 @@ function PersonIcon() {
   );
 }
 
-export function CitationChip({ citation, patientId: _patientId }: CitationChipProps) {
+export function CitationChip({ citation }: CitationChipProps) {
   const [open, setOpen] = useState(false);
   const isKnowledge = citation.kind === "evidence";
 
