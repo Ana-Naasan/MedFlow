@@ -78,6 +78,44 @@ def test_pdf_sourced_resource_includes_span() -> None:
     span = body["span"]
     assert span["page"] == 2
     assert span["snippet"] == "Warfarin 5 mg oral Anticoagulant Daily"
+    # The endpoint also surfaces the span under the DTO field name so the
+    # highlight view can read it as Citation.source_span (#97).
+    assert body["source_span"] == span
+
+
+def test_demo_packet_pdf_citations_carry_source_span() -> None:
+    """End-to-end (#97): the served DEMO-001 packet's PDF resource citations
+    carry source_span so the frontend can open the highlight view. The
+    abstain_reasoning fixture routes through the verified static scaffold."""
+    with TestClient(app) as client:
+        resp = client.get("/patients/DEMO-001/packet", headers=_auth_headers())
+    assert resp.status_code == 200
+    citations = [c for h in resp.json()["hypotheses"] for c in h["citations"]]
+    by_ref = {c["ref"]: c for c in citations}
+
+    warfarin = by_ref["MedicationStatement/med-warfarin"]
+    assert warfarin["source_span"]["page"] == 2
+    assert warfarin["source_span"]["snippet"] == "Warfarin 5 mg oral Anticoagulant Daily"
+
+    # A non-PDF resource citation (the Patient) carries no span → stays null,
+    # which the frontend renders as a static, non-interactive chip.
+    assert by_ref["Patient/DEMO-001"]["source_span"] is None
+
+    # Evidence (knowledge) citations are never PDF-resource spans.
+    assert by_ref["ddinter-warfarin-aspirin"]["source_span"] is None
+
+
+def test_resource_without_span_has_no_source_span() -> None:
+    """A non-PDF resource (no span key) must not gain a source_span (#97)."""
+    with TestClient(app) as client:
+        resp = client.get(
+            "/patients/pat-001/resource/Patient/pat-001",
+            headers=_auth_headers(),
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "span" not in body
+    assert "source_span" not in body
 
 
 def test_demo_001_evidence_card_resolves() -> None:

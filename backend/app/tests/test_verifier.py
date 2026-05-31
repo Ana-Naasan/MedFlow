@@ -13,13 +13,24 @@ from backend.app.dtos import (
     DecisionPacket,
     Hypothesis,
 )
-from backend.app.reasoning.verifier import ABSTAIN_MESSAGE, DropReason, verify_packet
+from backend.app.reasoning.verifier import (
+    ABSTAIN_MESSAGE,
+    DropReason,
+    _span_for_resource,
+    verify_packet,
+)
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
 
 _PATIENT_ID = "pat-001"
 
 _GOOD_RESOURCE = {"resourceType": "Patient", "id": "pat-001"}
+_RESOURCE_SPAN = {"page": 2, "start": 143, "end": 183, "snippet": "Warfarin 5 mg oral"}
+_RESOURCE_WITH_SPAN = {
+    "resourceType": "MedicationStatement",
+    "id": "med-warfarin",
+    "span": _RESOURCE_SPAN,
+}
 _GOOD_EVIDENCE = {"id": "ev-001", "source": "DDInter", "snippet": "Drug X increases bleeding risk."}
 _EVIDENCE_WITH_SPAN = {
     "id": "ev-span",
@@ -415,3 +426,87 @@ def test_completeness_preserved_on_abstain_path() -> None:
     assert result.hypotheses == []  # sanity: this is the abstain path
     assert result.summary_markdown == ABSTAIN_MESSAGE
     assert result.completeness == _COMPLETENESS
+
+
+# ── source_span enrichment (#97) ─────────────────────────────────────────────
+#
+# A verified PDF-sourced resource citation must carry its source_span so the
+# frontend can render the highlight view. A resource with no span (or a
+# non-resource citation) keeps source_span=None and the chip stays static.
+
+
+def test_resource_citation_gets_source_span_when_pdf_sourced() -> None:
+    hyp = _make_hyp([_resource_citation("MedicationStatement/med-warfarin")])
+    packet = _make_packet([hyp])
+    result = verify_packet(
+        packet,
+        resource_lookup=_resource_returns(_RESOURCE_WITH_SPAN),
+        evidence_lookup=_evidence_returns(_GOOD_EVIDENCE),
+    )
+    assert len(result.hypotheses) == 1
+    span = result.hypotheses[0].citations[0].source_span
+    assert span is not None
+    assert span.page == 2
+    assert span.start == 143
+    assert span.end == 183
+    assert span.snippet == "Warfarin 5 mg oral"
+
+
+def test_resource_citation_without_span_stays_none() -> None:
+    hyp = _make_hyp([_resource_citation("Patient/pat-001")])
+    packet = _make_packet([hyp])
+    result = verify_packet(
+        packet,
+        resource_lookup=_resource_returns(_GOOD_RESOURCE),  # no span key
+        evidence_lookup=_evidence_returns(_GOOD_EVIDENCE),
+    )
+    assert len(result.hypotheses) == 1
+    assert result.hypotheses[0].citations[0].source_span is None
+
+
+def test_evidence_citation_never_gets_source_span() -> None:
+    hyp = _make_hyp([_evidence_citation("ev-001")])
+    packet = _make_packet([hyp])
+    result = verify_packet(
+        packet,
+        resource_lookup=_resource_returns(_RESOURCE_WITH_SPAN),
+        evidence_lookup=_evidence_returns(_GOOD_EVIDENCE),
+    )
+    assert result.hypotheses[0].citations[0].source_span is None
+
+
+def test_span_for_resource_ignores_non_resource_kind() -> None:
+    span = _span_for_resource(
+        _evidence_citation("ev-001"),
+        patient_id=_PATIENT_ID,
+        resource_lookup=_resource_returns(_RESOURCE_WITH_SPAN),
+    )
+    assert span is None
+
+
+def test_span_for_resource_handles_malformed_ref() -> None:
+    span = _span_for_resource(
+        Citation(kind="resource", ref="NoSlash"),
+        patient_id=_PATIENT_ID,
+        resource_lookup=_resource_returns(_RESOURCE_WITH_SPAN),
+    )
+    assert span is None
+
+
+def test_span_for_resource_handles_missing_resource() -> None:
+    span = _span_for_resource(
+        _resource_citation("MedicationStatement/ghost"),
+        patient_id=_PATIENT_ID,
+        resource_lookup=_resource_returns(None),
+    )
+    assert span is None
+
+
+def test_span_for_resource_ignores_non_dict_span() -> None:
+    resource = {"resourceType": "MedicationStatement", "id": "x", "span": "not-a-dict"}
+    span = _span_for_resource(
+        _resource_citation("MedicationStatement/x"),
+        patient_id=_PATIENT_ID,
+        resource_lookup=_resource_returns(resource),
+    )
+    assert span is None

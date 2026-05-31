@@ -160,6 +160,12 @@ async def get_patient_citation(
     resource = get_patient_resource(patient_id, resource_type, resource_id)
     if resource is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Citation not found")
+    # PDF-sourced resources carry a "span" key (page/start/end/snippet). Surface
+    # it under the DTO field name "source_span" so the highlight view can render
+    # straight from the /resource response, mirroring Citation.source_span.
+    span = resource.get("span")
+    if isinstance(span, dict):
+        resource = {**resource, "source_span": span}
     return resource
 
 

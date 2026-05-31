@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { Citation } from "../lib/types";
 import { EvidencePanel } from "./EvidencePanel";
+import { PdfHighlightPanel } from "./PdfHighlightPanel";
 
 interface CitationChipProps {
   citation: Citation;
@@ -30,24 +31,55 @@ function PersonIcon() {
 export function CitationChip({ citation }: CitationChipProps) {
   const [open, setOpen] = useState(false);
   const isKnowledge = citation.kind === "evidence";
+  const isResource = citation.kind === "resource";
+  const span = citation.source_span ?? null;
+  // INVARIANT (#97): a chip must never look interactive but do nothing.
+  // - evidence → opens the EvidencePanel
+  // - resource WITH a source_span → opens the PdfHighlightPanel
+  // - resource WITHOUT a source_span → static, non-interactive label
+  const hasHighlight = isResource && span != null;
+  const isInteractive = isKnowledge || hasHighlight;
 
-  const chipClass = `chip-interactive ${isKnowledge ? "chip-knowledge" : "chip-patient-fact"}`;
+  const label = citation.label ?? citation.ref;
+  const icon = isKnowledge ? <ExternalLinkIcon /> : <PersonIcon />;
+  const dataType = isKnowledge ? "knowledge" : "patient-fact";
+  const variant = isKnowledge ? "chip-knowledge" : "chip-patient-fact";
+
+  if (!isInteractive) {
+    return (
+      <span
+        className={`chip-static ${variant}`}
+        data-citation-type={dataType}
+        data-interactive="false"
+      >
+        {icon}
+        {label}
+      </span>
+    );
+  }
 
   return (
     <>
       <button
         type="button"
-        className={chipClass}
-        onClick={isKnowledge ? () => setOpen(true) : undefined}
-        {...(isKnowledge ? { "aria-haspopup": "dialog" as const } : {})}
-        data-citation-type={isKnowledge ? "knowledge" : "patient-fact"}
+        className={`chip-interactive ${variant}`}
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        data-citation-type={dataType}
       >
-        {isKnowledge ? <ExternalLinkIcon /> : <PersonIcon />}
-        {citation.label ?? citation.ref}
+        {icon}
+        {label}
       </button>
       {open && isKnowledge && (
         <EvidencePanel
           evidenceId={citation.ref}
+          label={citation.label}
+          onClose={() => setOpen(false)}
+        />
+      )}
+      {open && hasHighlight && span && (
+        <PdfHighlightPanel
+          span={span}
           label={citation.label}
           onClose={() => setOpen(false)}
         />

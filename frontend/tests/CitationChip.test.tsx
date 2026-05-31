@@ -23,6 +23,18 @@ const resourceCitation: Citation = {
   label: "Patient/pat-001",
 };
 
+const resourceWithSpan: Citation = {
+  kind: "resource",
+  ref: "MedicationStatement/med-warfarin",
+  label: "Warfarin (PDF)",
+  source_span: {
+    page: 2,
+    start: 143,
+    end: 183,
+    snippet: "Warfarin 5 mg oral Anticoagulant Daily",
+  },
+};
+
 const mockIdle = { data: undefined, isLoading: false, isError: false };
 
 describe("CitationChip", () => {
@@ -57,8 +69,8 @@ describe("CitationChip", () => {
   });
 
   it("renders patient-fact chip with correct visual style", () => {
-    render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
-    const chip = screen.getByRole("button", { name: /Patient\/pat-001/i });
+    render(<CitationChip citation={resourceWithSpan} patientId="DEMO-001" />);
+    const chip = screen.getByRole("button", { name: /Warfarin \(PDF\)/i });
     expect(chip.className).toContain("chip-patient-fact");
   });
 
@@ -69,9 +81,23 @@ describe("CitationChip", () => {
   });
 
   it("patient-fact chip has data-citation-type patient-fact", () => {
-    render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
-    const chip = screen.getByRole("button", { name: /Patient\/pat-001/i });
+    render(<CitationChip citation={resourceWithSpan} patientId="DEMO-001" />);
+    const chip = screen.getByRole("button", { name: /Warfarin \(PDF\)/i });
     expect(chip).toHaveAttribute("data-citation-type", "patient-fact");
+  });
+
+  // ── Non-interactive patient-fact chip (no source_span) ───────────────────
+
+  it("renders a span (not a button) when resource citation has no source_span", () => {
+    render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
+    expect(
+      screen.queryByRole("button", { name: /Patient\/pat-001/i })
+    ).not.toBeInTheDocument();
+    const chip = screen.getByText(/Patient\/pat-001/i);
+    expect(chip.tagName).toBe("SPAN");
+    expect(chip).toHaveAttribute("data-interactive", "false");
+    expect(chip.className).toContain("chip-static");
+    expect(chip.className).toContain("chip-patient-fact");
   });
 
   // ── Knowledge chip interaction ──────────────────────────────────────────
@@ -110,17 +136,36 @@ describe("CitationChip", () => {
     expect(screen.queryByTestId("evidence-panel")).not.toBeInTheDocument();
   });
 
-  // ── Patient-fact chip interaction ────────────────────────────────────────
+  // ── Patient-fact chip interaction (with source_span) ─────────────────────
 
-  it("patient-fact chip tap is safe no-op — no EvidencePanel opens", () => {
-    render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
-    fireEvent.click(screen.getByRole("button", { name: /Patient\/pat-001/i }));
+  it("patient-fact chip with source_span opens the PdfHighlight panel", () => {
+    render(<CitationChip citation={resourceWithSpan} patientId="DEMO-001" />);
+    expect(screen.queryByTestId("pdf-highlight-panel")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Warfarin \(PDF\)/i }));
+    expect(screen.getByTestId("pdf-highlight-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("pdf-highlight")).toBeInTheDocument();
+    expect(screen.getByText("Warfarin 5 mg oral Anticoagulant Daily")).toBeInTheDocument();
+  });
+
+  it("patient-fact chip with source_span does not open the EvidencePanel", () => {
+    render(<CitationChip citation={resourceWithSpan} patientId="DEMO-001" />);
+    fireEvent.click(screen.getByRole("button", { name: /Warfarin \(PDF\)/i }));
     expect(screen.queryByTestId("evidence-panel")).not.toBeInTheDocument();
   });
 
-  it("patient-fact chip tap does not call evidence API", () => {
+  it("PdfHighlight panel close button dismisses the panel", () => {
+    render(<CitationChip citation={resourceWithSpan} patientId="DEMO-001" />);
+    fireEvent.click(screen.getByRole("button", { name: /Warfarin \(PDF\)/i }));
+    expect(screen.getByTestId("pdf-highlight-panel")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /close/i })[0]);
+    expect(screen.queryByTestId("pdf-highlight-panel")).not.toBeInTheDocument();
+  });
+
+  it("non-interactive patient-fact chip cannot open any panel", () => {
     render(<CitationChip citation={resourceCitation} patientId="pat-001" />);
-    fireEvent.click(screen.getByRole("button", { name: /Patient\/pat-001/i }));
+    fireEvent.click(screen.getByText(/Patient\/pat-001/i));
+    expect(screen.queryByTestId("evidence-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-highlight-panel")).not.toBeInTheDocument();
     const calls = vi.mocked($api.useQuery).mock.calls;
     const evidenceCall = calls.find((c) => c[1] === "/evidence/{evidence_id}");
     expect(evidenceCall).toBeUndefined();

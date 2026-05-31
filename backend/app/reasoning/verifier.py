@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from backend.app.dtos import Citation, DecisionPacket, Hypothesis
+from backend.app.dtos import Citation, DecisionPacket, Hypothesis, Span
 
 # ── Callable types ────────────────────────────────────────────────────────────
 
@@ -93,7 +93,13 @@ def verify_packet(
             pdf_pages=pdf_pages,
         )
         if drop is None:
-            kept.append(hyp)
+            kept.append(
+                _enrich_hypothesis(
+                    hyp,
+                    patient_id=packet.patient_id,
+                    resource_lookup=resource_lookup,
+                )
+            )
 
     if not kept:
         return DecisionPacket(
@@ -138,6 +144,59 @@ def _check_hypothesis(
         if reason is not None:
             return reason
     return None
+
+
+def _enrich_hypothesis(
+    hyp: Hypothesis,
+    *,
+    patient_id: str,
+    resource_lookup: ResourceLookup,
+) -> Hypothesis:
+    """Attach the PDF ``source_span`` to every resolvable resource citation.
+
+    Runs only on hypotheses that already passed verification, so the lookups
+    here are guaranteed to resolve. A resource that carries no ``span`` (e.g. a
+    non-PDF FHIR record) keeps ``source_span=None``, which the frontend renders
+    as a non-interactive chip — never "looks clickable but does nothing".
+    """
+    enriched: list[Citation] = []
+    changed = False
+    for citation in hyp.citations:
+        span = _span_for_resource(citation, patient_id=patient_id, resource_lookup=resource_lookup)
+        if span is None:
+            enriched.append(citation)
+            continue
+        enriched.append(citation.model_copy(update={"source_span": span}))
+        changed = True
+    if not changed:
+        return hyp
+    return hyp.model_copy(update={"citations": enriched})
+
+
+def _span_for_resource(
+    citation: Citation,
+    *,
+    patient_id: str,
+    resource_lookup: ResourceLookup,
+) -> Span | None:
+    """Return the source ``Span`` for a PDF-sourced resource citation, else None."""
+    if citation.kind.lower() not in _RESOURCE_KINDS:
+        return None
+    parts = citation.ref.split("/", 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return None
+    resource = resource_lookup(patient_id, parts[0], parts[1])
+    if resource is None:
+        return None
+    span = resource.get("span")
+    if not isinstance(span, dict):
+        return None
+    return Span(
+        page=span["page"],
+        start=span["start"],
+        end=span["end"],
+        snippet=span["snippet"],
+    )
 
 
 def _check_citation(
