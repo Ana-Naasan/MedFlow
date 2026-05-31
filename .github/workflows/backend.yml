@@ -6,7 +6,7 @@ on:
       - 'backend/**'
       - '.github/workflows/backend.yml'
   push:
-    branches: [main]
+    branches: [main, planning]
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
@@ -17,12 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NOTE: setup-python's built-in `cache: pip` is intentionally NOT enabled
+      # yet — it fails the job until the scaffold (#2) adds backend/requirements.txt
+      # to hash. Re-enable with `cache: pip` + `cache-dependency-path:
+      # backend/requirements.txt` in the scaffold PR.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
 
-      - name: Lint, typecheck & test (coverage gate on core packages)
+      - name: Lint & test (ruff + black + pytest, coverage gate on core)
         run: |
           if [ ! -d backend ] || [ ! -f backend/requirements.txt ]; then
             echo "::notice::backend not scaffolded yet — skipping (see #2)"; exit 0

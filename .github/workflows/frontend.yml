@@ -6,7 +6,7 @@ on:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
   push:
-    branches: [main]
+    branches: [main, planning]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
@@ -17,6 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NOTE: setup-node's built-in `cache: npm` is intentionally NOT enabled
+      # yet — it fails the job until the scaffold (#2) adds frontend/package-lock.json
+      # to hash. Re-enable with `cache: npm` + `cache-dependency-path:
+      # frontend/package-lock.json` in the scaffold PR.
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -29,6 +33,6 @@ jobs:
           cd frontend
           npm ci
           npm run lint --if-present
-          npx tsc --noEmit
-          npm test --if-present -- --ci --watchAll=false || true
+          npx --no-install tsc --noEmit
+          npm test --if-present -- --ci --watchAll=false
           npm run build
