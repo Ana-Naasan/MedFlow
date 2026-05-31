@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { Heart, Stethoscope } from "lucide-react"
@@ -11,9 +11,21 @@ type Role = "patient" | "clinician"
 
 const ROLE_STORAGE_KEY = "umraa-preferred-role"
 
+/**
+ * Read the stored role preference once, on first render. Guarded for SSR
+ * (`typeof window`) so the server render and the client's initial render agree.
+ */
+function readStoredRole(): Role {
+  if (typeof window === "undefined") return "patient"
+  const stored = window.localStorage.getItem(ROLE_STORAGE_KEY)
+  return stored === "clinician" ? "clinician" : "patient"
+}
+
 export function LandingPage() {
   const { data: session } = useSession()
-  const [role, setRole] = useState<Role>("patient")
+  // Lazy initializer reads localStorage on first render instead of mirroring it
+  // into state via a mount effect (no synchronous setState in an effect body).
+  const [role, setRole] = useState<Role>(readStoredRole)
 
   const dashboardHref =
     session?.user?.userType === "patient"
@@ -21,13 +33,6 @@ export function LandingPage() {
       : session
         ? "/dashboard"
         : null
-
-  useEffect(() => {
-    const stored = localStorage.getItem(ROLE_STORAGE_KEY)
-    if (stored === "patient" || stored === "clinician") {
-      setRole(stored)
-    }
-  }, [])
 
   function selectRole(next: Role) {
     setRole(next)

@@ -98,7 +98,14 @@ export function EvidenceDrawer({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* tabIndex/aria-label let keyboard users focus and arrow-scroll this
+            overflow region even when its content is purely non-interactive
+            (e.g. a long FHIR-JSON <pre> or span highlight). */}
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          tabIndex={0}
+          aria-label="Source detail"
+        >
           {span && <SpanHighlight span={span} />}
 
           {citation == null ? null : isKnowledge ? (

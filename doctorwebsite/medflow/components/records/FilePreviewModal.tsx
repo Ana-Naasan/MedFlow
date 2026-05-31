@@ -2,7 +2,17 @@
 
 import { useEffect } from "react"
 import { createPortal } from "react-dom"
-import { FileText, Image, Scan, File, Download, ExternalLink, X } from "lucide-react"
+// `Image` is aliased to `ImageIcon` so jsx-a11y/alt-text does not mistake the
+// Lucide SVG icon for an <img> element requiring an `alt` prop.
+import {
+  FileText,
+  Image as ImageIcon,
+  Scan,
+  File,
+  Download,
+  ExternalLink,
+  X,
+} from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -56,7 +66,7 @@ function FileTypeIcon({ type }: { type: FileType }) {
     case "dicom":
       return <Scan {...iconProps} />
     case "image":
-      return <Image {...iconProps} />
+      return <ImageIcon {...iconProps} />
     default:
       return <File {...iconProps} />
   }

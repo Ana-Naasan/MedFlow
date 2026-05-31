@@ -55,14 +55,16 @@ export function PatientSearch() {
     return () => document.removeEventListener("keydown", down)
   }, [searchOpen, setSearchOpen])
 
-  // Reset query when modal closes
-  useEffect(() => {
-    if (!searchOpen) setQuery("")
-  }, [searchOpen])
+  // Reset the query in the same handler that toggles the dialog (no
+  // effect-driven setState): clear it whenever the dialog transitions closed.
+  function handleOpenChange(next: boolean) {
+    setSearchOpen(next)
+    if (!next) setQuery("")
+  }
 
   function handleSelect(patientId: string) {
     addRecentPatient(patientId)
-    setSearchOpen(false)
+    handleOpenChange(false)
     router.push(`/patients/${patientId}/profile`)
   }
 
@@ -74,7 +76,7 @@ export function PatientSearch() {
   return (
     <CommandDialog
       open={searchOpen}
-      onOpenChange={setSearchOpen}
+      onOpenChange={handleOpenChange}
       title="Search patients"
       description="Search by name, patient ID, or health card number"
     >

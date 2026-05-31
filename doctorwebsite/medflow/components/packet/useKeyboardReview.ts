@@ -42,14 +42,32 @@ function isEditableTarget(el: EventTarget | null): boolean {
   return false
 }
 
+/**
+ * True when focus rests on an in-card interactive control (an action button or
+ * anything inside the citations/actions slots). Review shortcuts (c/d/j/k/Enter)
+ * are suppressed there so the control keeps its native keyboard semantics —
+ * mirroring the existing Enter guard.
+ */
+function isInCardControl(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false
+  if (el.tagName === "BUTTON") return true
+  return el.closest(
+    '[data-slot="hypothesis-actions"],[data-slot="hypothesis-citations"]',
+  ) != null
+}
+
 export function useKeyboardReview(
   hypotheses: Hypothesis[],
   handlers: KeyboardReviewHandlers
 ) {
   // Mirror inputs into a ref so the listener (attached once) always reads the
-  // latest list + callbacks without re-subscribing on every render.
+  // latest list + callbacks without re-subscribing on every render. The write
+  // happens after commit (in an effect) rather than during render so React's
+  // concurrent rendering never observes a torn ref.
   const stateRef = useRef({ hypotheses, handlers })
-  stateRef.current = { hypotheses, handlers }
+  useEffect(() => {
+    stateRef.current = { hypotheses, handlers }
+  })
 
   /** Index of the currently focused card, or -1 if focus is elsewhere. */
   const focusedIndex = useCallback((ids: string[]): number => {
@@ -89,6 +107,11 @@ export function useKeyboardReview(
       const ids = hyps.map((x) => x.id)
       if (ids.length === 0) return
       const idx = focusedIndex(ids)
+
+      // When an in-card control (action button, citation/action slot) holds
+      // focus, let it own the keyboard — review shortcuts (c/d/j/k) and Enter
+      // must not fire over native control activation.
+      if (isInCardControl(e.target)) return
 
       switch (e.key) {
         case "j":

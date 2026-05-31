@@ -48,7 +48,9 @@ export default function PacketPage() {
   // The operator's explicit override of the backend patient (null = use default).
   const [override, setOverride] = useState<string | null>(null)
 
-  const ids = patientIds ?? []
+  // Memoize the fallback so `ids` keeps a stable identity across renders — a
+  // fresh `[]` each render would defeat the activePatientId useMemo below.
+  const ids = useMemo(() => patientIds ?? [], [patientIds])
   const routeInBackend = ids.includes(routeId)
 
   // Active backend patient id: explicit override → route id if backend knows it

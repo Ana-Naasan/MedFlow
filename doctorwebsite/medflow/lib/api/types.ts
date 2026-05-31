@@ -74,12 +74,21 @@ export interface DecisionPacket {
 
 /**
  * Response of `GET /evidence/{evidence_id}` — a resolvable evidence snippet.
+ *
+ * The endpoint returns the raw knowledge card, which in practice is looser than
+ * the core `{id,kind,ref,label}` quartet: it commonly also carries a `source`
+ * (publisher/origin), a `snippet` (the displayable excerpt), and a `ref_url`
+ * (external link). These are declared optional so the typed contract matches
+ * what `EvidenceBody` reads defensively at runtime instead of diverging from it.
  */
 export interface EvidenceSnippet {
   id: string;
   kind: string;
   ref: string;
   label: string;
+  source?: string | null;
+  snippet?: string | null;
+  ref_url?: string | null;
 }
 
 /**

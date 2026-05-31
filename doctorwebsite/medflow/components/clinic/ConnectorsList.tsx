@@ -76,7 +76,9 @@ export function ConnectorsList() {
               ([key]) => key !== "id" && key !== "name" && key !== "connector",
             )
             return (
-              <li key={id} className="mf-surface-card p-4">
+              // `id` is a best-effort extraction from an untyped record and may
+              // collide; pairing it with the index guarantees a unique key.
+              <li key={`${id}-${index}`} className="mf-surface-card p-4">
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <Plug className="size-3.5 opacity-60" aria-hidden />
                   <span className="font-mono">{id}</span>

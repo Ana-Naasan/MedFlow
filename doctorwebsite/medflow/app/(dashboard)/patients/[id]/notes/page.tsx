@@ -65,11 +65,14 @@ export default function NotesPage() {
   const [autoSave, setAutoSave] = useState<AutoSaveStatus>("saved")
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTag, setFilterTag] = useState<FilterTag>("all")
-  const [editTitle, setEditTitle] = useState("")
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const selectedNote = localNotes.find((n) => n.id === selectedNoteId) ?? null
+  // Title is derived from the selected note during render (the title input is
+  // key-reset per note id so it picks up the new value on selection) — no
+  // effect-driven state mirroring.
+  const editTitle = selectedNote?.title ?? ""
 
   const filteredNotes = localNotes.filter((note) => {
     const matchesSearch =
@@ -104,12 +107,6 @@ export default function NotesPage() {
     }
   }, [selectedNote?.id, isLocked]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (selectedNote) {
-      setEditTitle(selectedNote.title)
-    }
-  }, [selectedNote?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleSelectNote = (noteId: string) => {
     setSelectedNoteId(noteId)
     setIsLocked(false)
@@ -117,7 +114,6 @@ export default function NotesPage() {
   }
 
   const handleTitleChange = (value: string) => {
-    setEditTitle(value)
     if (!selectedNoteId) return
     setLocalNotes((prev) =>
       prev.map((n) =>
@@ -271,6 +267,7 @@ export default function NotesPage() {
               {/* Header bar */}
               <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--border)] shrink-0">
                 <input
+                  key={selectedNote.id}
                   value={editTitle}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   disabled={isLocked}

@@ -61,10 +61,14 @@ function formatClock(date: Date): string {
 
 export function Header() {
   const pathname = usePathname()
-  const [clock, setClock] = useState<string>("")
+  // Seed the clock lazily on first client render (guarded for SSR so the server
+  // emits an empty string). The <time> below is suppressHydrationWarning since
+  // its text is inherently client-only. The effect only owns the interval.
+  const [clock, setClock] = useState<string>(() =>
+    typeof window === "undefined" ? "" : formatClock(new Date()),
+  )
 
   useEffect(() => {
-    setClock(formatClock(new Date()))
     const id = setInterval(() => setClock(formatClock(new Date())), 60_000)
     return () => clearInterval(id)
   }, [])
@@ -109,6 +113,7 @@ export function Header() {
           className="mf-eyebrow !text-[10px] hidden sm:block"
           role="status"
           aria-live="polite"
+          suppressHydrationWarning
         >
           {clock}
         </time>

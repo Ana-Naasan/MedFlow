@@ -43,6 +43,9 @@ export function HypothesisCard({
       data-hypothesis-id={hypothesis.id}
       tabIndex={0}
       aria-label={hypothesis.title}
+      // Surface the review shortcuts to assistive tech (the visible KeyboardHint
+      // is sighted-only): j/k move · c ack · d dismiss · Enter open citation.
+      aria-keyshortcuts="j k c d Enter"
       className="rounded-lg border border-border bg-bg-surface p-5 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
     >
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
