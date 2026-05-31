@@ -54,6 +54,8 @@ _TAG_RE = re.compile(r"^\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]", re.MULTILINE)
 # gate is relied upon in production — see #75.
 _FORBIDDEN_LANGUAGE = re.compile(
     r"\bcaused\s+by\b"  # causal attribution
+    r"|\bcauses\b"  # causal attribution
+    r"|\bdue\s+to\b"  # causal attribution
     r"|\bdiscontinue\b"  # drug directive
     r"|\bstop\s+taking\b"  # drug directive
     r"|\bmust\s+(?:stop|start)\b",  # prescriptive directive

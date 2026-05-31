@@ -153,6 +153,9 @@ class TestForbiddenLanguage:
             ("", "Discontinue the aspirin."),
             ("", "Consider whether to stop taking metformin."),
             ("Patient must stop lisinopril", ""),
+            ("", "Warfarin causes bleeding."),
+            ("", "The bleeding was due to warfarin."),
+            ("The patient must start warfarin", ""),
         ],
     )
     def test_flags_causal_and_directive_language(self, title: str, why: str) -> None:
