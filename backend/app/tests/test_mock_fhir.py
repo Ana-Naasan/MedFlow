@@ -4,10 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-import pytest
-
-from backend.app.providers.mock_fhir import MockFHIRProvider, _KEPT_TYPES, _trim_and_validate
-
+from backend.app.providers.mock_fhir import _KEPT_TYPES, MockFHIRProvider, _trim_and_validate
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -19,7 +16,7 @@ class _PassThrough:
         self._raw = raw
 
     @classmethod
-    def model_validate(cls, raw: dict) -> "_PassThrough":
+    def model_validate(cls, raw: dict) -> _PassThrough:
         return cls(raw)
 
     def model_dump(self, **_kwargs) -> dict:

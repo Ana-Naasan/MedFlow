@@ -20,22 +20,24 @@ from backend.app.providers.base import (
     ConnectorUnavailable,
     FetchResult,
     HealthStatus,
-    Provider,
     Provenance,
+    Provider,
 )
 
 _BASE_URL = "https://hapi.fhir.org/baseR4"
 _SEEDS_DIR = Path(__file__).parent.parent / "seeds"
 _DEFAULT_SNAPSHOT = _SEEDS_DIR / "mock_fhir_snapshot.json"
 
-_KEPT_TYPES = frozenset({
-    "Patient",
-    "Condition",
-    "MedicationStatement",
-    "Observation",
-    "AllergyIntolerance",
-    "Procedure",
-})
+_KEPT_TYPES = frozenset(
+    {
+        "Patient",
+        "Condition",
+        "MedicationStatement",
+        "Observation",
+        "AllergyIntolerance",
+        "Procedure",
+    }
+)
 
 _TYPE_TO_CAP = {
     "Patient": "patient",
