@@ -188,3 +188,50 @@ def test_patient_resource_not_rendered() -> None:
     records = [{"resourceType": "Patient", "id": "p1", "name": [{"family": "Smith"}]}]
     out = flatten_to_tagged_text(records)
     assert "[Patient/p1]" not in out
+
+
+# ── Determinism contract ─────────────────────────────────────────────────────
+
+_TWO_MEDS = [
+    {
+        "resourceType": "MedicationStatement",
+        "id": "m2",
+        "status": "active",
+        "medicationCodeableConcept": {
+            "coding": [
+                {
+                    "display": "Zeta 5 MG",
+                    "code": "2",
+                    "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                }
+            ]
+        },
+        "subject": {"reference": "Patient/p1"},
+    },
+    {
+        "resourceType": "MedicationStatement",
+        "id": "m1",
+        "status": "active",
+        "medicationCodeableConcept": {
+            "coding": [
+                {
+                    "display": "Alpha 10 MG",
+                    "code": "1",
+                    "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                }
+            ]
+        },
+        "subject": {"reference": "Patient/p1"},
+    },
+]
+
+
+def test_flatten_is_deterministic() -> None:
+    """Same input → byte-identical output across repeated calls."""
+    assert flatten_to_tagged_text(_TWO_MEDS) == flatten_to_tagged_text(_TWO_MEDS)
+
+
+def test_flatten_preserves_input_order_within_category() -> None:
+    """Two same-type resources render in input order (m2 before m1), not sorted."""
+    out = flatten_to_tagged_text(_TWO_MEDS)
+    assert out.index("[MedicationStatement/m2]") < out.index("[MedicationStatement/m1]")
