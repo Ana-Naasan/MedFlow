@@ -52,9 +52,7 @@ class DrugResolutionReport:
                     f"{self.resolved_count}/{self.total_count} drugs resolved"
                 )
         if self.low_confidence_note is None and self.total_count == 0:
-            self.low_confidence_note = (
-                "limited input — low confidence: no drugs provided"
-            )
+            self.low_confidence_note = "limited input — low confidence: no drugs provided"
 
     @property
     def total_count(self) -> int:
@@ -116,9 +114,7 @@ def _approximate_match(name: str) -> str | None:
     candidate's RxCUI, or ``None``.  Network errors are caught and return
     ``None``."""
     try:
-        resp = _get_client().get(
-            "/approximateTerm.json", params={"term": name, "maxEntries": 1}
-        )
+        resp = _get_client().get("/approximateTerm.json", params={"term": name, "maxEntries": 1})
         if resp.status_code != 200:
             return None
         body = resp.json()
@@ -207,18 +203,10 @@ def resolve_drug(name: str) -> DrugResolution:
 
     # Fetch extra properties (ATC codes, canonical name)
     props = _fetch_properties(rxcui)
-    atc_codes = [
-        p.get("propValue", "")
-        for p in props
-        if p.get("propName") == "ATC"
-    ]
+    atc_codes = [p.get("propValue", "") for p in props if p.get("propName") == "ATC"]
     display_name = (
         next(
-            (
-                p.get("propValue", "")
-                for p in props
-                if p.get("propCategory") == "NAMES"
-            ),
+            (p.get("propValue", "") for p in props if p.get("propCategory") == "NAMES"),
             None,
         )
         or name

@@ -34,9 +34,7 @@ _METFORMIN_INGREDIENT = {
         "conceptGroup": [
             {
                 "tty": "IN",
-                "conceptProperties": [
-                    {"rxcui": "6809", "name": "metformin", "tty": "IN"}
-                ],
+                "conceptProperties": [{"rxcui": "6809", "name": "metformin", "tty": "IN"}],
             }
         ],
     }
@@ -58,9 +56,7 @@ _LISINOPRIL_INGREDIENT = {
         "conceptGroup": [
             {
                 "tty": "IN",
-                "conceptProperties": [
-                    {"rxcui": "197884", "name": "lisinopril", "tty": "IN"}
-                ],
+                "conceptProperties": [{"rxcui": "197884", "name": "lisinopril", "tty": "IN"}],
             }
         ],
     }
@@ -101,9 +97,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -142,9 +136,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformim")
 
         assert result.resolved is True
@@ -156,9 +148,7 @@ class TestResolveDrug:
         """A completely unknown drug returns resolved=False."""
         responses = [
             _mock_json_response({"idGroup": {}}),  # exact fails
-            _mock_json_response(
-                {"approximateGroup": {"candidate": []}}
-            ),  # approximate fails
+            _mock_json_response({"approximateGroup": {"candidate": []}}),  # approximate fails
         ]
         mock_get = MagicMock(side_effect=responses)
         mock_client = MagicMock()
@@ -166,9 +156,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("zzzzzzzzz")
 
         assert result.resolved is False
@@ -192,11 +180,7 @@ class TestResolveDrug:
         responses = [
             mock_500,
             _mock_json_response(
-                {
-                    "approximateGroup": {
-                        "candidate": [{"rxcui": "6809", "name": "metformin"}]
-                    }
-                }
+                {"approximateGroup": {"candidate": [{"rxcui": "6809", "name": "metformin"}]}}
             ),
             _mock_json_response(_METFORMIN_PROPS),
             _mock_json_response(_METFORMIN_INGREDIENT),
@@ -207,9 +191,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -228,9 +210,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -251,9 +231,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -264,9 +242,7 @@ class TestResolveDrug:
         """If approximate candidate has no rxcui, treat as failed."""
         responses = [
             _mock_json_response({"idGroup": {}}),
-            _mock_json_response(
-                {"approximateGroup": {"candidate": [{"score": "1.0"}]}}
-            ),
+            _mock_json_response({"approximateGroup": {"candidate": [{"score": "1.0"}]}}),
         ]
         mock_get = MagicMock(side_effect=responses)
         mock_client = MagicMock()
@@ -274,9 +250,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("unknown")
 
         assert result.resolved is False
@@ -294,9 +268,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("lisinopril")
 
         assert result.resolved is True
@@ -319,9 +291,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -379,9 +349,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -392,9 +360,7 @@ class TestResolveDrug:
         """RxNav returns empty idGroup (not null) for unknown drug."""
         responses = [
             _mock_json_response({"idGroup": {"rxnormId": []}}),
-            _mock_json_response(
-                {"approximateGroup": {"candidate": []}}
-            ),
+            _mock_json_response({"approximateGroup": {"candidate": []}}),
         ]
         mock_get = MagicMock(side_effect=responses)
         mock_client = MagicMock()
@@ -402,9 +368,7 @@ class TestResolveDrug:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("unknown")
 
         assert result.resolved is False
@@ -430,9 +394,7 @@ class TestResolveDrugs:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             report = resolve_drugs(["metformin", "lisinopril"])
 
         assert report.total_count == 2
@@ -459,12 +421,8 @@ class TestResolveDrugs:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
-            report = resolve_drugs(
-                ["metformin", "unknown1", "unknown2", "unknown3"]
-            )
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
+            report = resolve_drugs(["metformin", "unknown1", "unknown2", "unknown3"])
 
         assert report.total_count == 4
         assert report.resolved_count == 1
@@ -532,9 +490,7 @@ class TestNetworkErrors:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is False
@@ -546,11 +502,7 @@ class TestNetworkErrors:
             side_effect=[
                 httpx.TimeoutException("timeout"),
                 _mock_json_response(
-                    {
-                        "approximateGroup": {
-                            "candidate": [{"rxcui": "6809", "name": "metformin"}]
-                        }
-                    }
+                    {"approximateGroup": {"candidate": [{"rxcui": "6809", "name": "metformin"}]}}
                 ),
                 _mock_json_response(_METFORMIN_PROPS),
                 _mock_json_response(_METFORMIN_INGREDIENT),
@@ -561,22 +513,19 @@ class TestNetworkErrors:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
         assert result.rxcui == "6809"
 
-# ── Coverage edge cases for unvisited branches ─────────────────────────────
-
+    # ── Coverage edge cases for unvisited branches ─────────────────────────────
 
     def test_non_200_on_approximate(self) -> None:
         """A non-200 from the approximate endpoint returns None (line 123)."""
         responses = [
-            _mock_json_response({"idGroup": {}}),              # exact fails
-            _mock_json_response({}, status=500),               # approximate 500
+            _mock_json_response({"idGroup": {}}),  # exact fails
+            _mock_json_response({}, status=500),  # approximate 500
         ]
         mock_get = MagicMock(side_effect=responses)
         mock_client = MagicMock()
@@ -584,9 +533,7 @@ class TestNetworkErrors:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("test")
 
         assert result.resolved is False
@@ -595,8 +542,8 @@ class TestNetworkErrors:
         """A network error on the properties endpoint returns [] (lines 151-152)."""
         responses = [
             _mock_json_response({"idGroup": {"rxnormId": ["6809"]}}),  # exact ok
-            httpx.ConnectError("timeout fetching properties"),           # props fail
-            _mock_json_response(_METFORMIN_INGREDIENT),                 # ingredient ok
+            httpx.ConnectError("timeout fetching properties"),  # props fail
+            _mock_json_response(_METFORMIN_INGREDIENT),  # ingredient ok
         ]
         mock_get = MagicMock(side_effect=responses)
         mock_client = MagicMock()
@@ -604,9 +551,7 @@ class TestNetworkErrors:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
@@ -627,9 +572,7 @@ class TestNetworkErrors:
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch(
-            "backend.app.knowledge.rxnav._get_client", return_value=mock_client
-        ):
+        with patch("backend.app.knowledge.rxnav._get_client", return_value=mock_client):
             result = resolve_drug("metformin")
 
         assert result.resolved is True
