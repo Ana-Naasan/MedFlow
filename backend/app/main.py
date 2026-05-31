@@ -44,7 +44,26 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def log_requests(request: Request, call_next) -> Response:
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            # Log the 5xx/unhandled case too — the requests most worth logging —
+            # then re-raise so the error is NOT swallowed.
+            duration_ms = round((time.perf_counter() - start) * 1000, 2)
+            logger.exception(
+                "%s %s -> error",
+                request.method,
+                request.url.path,
+                extra={
+                    "context": {
+                        "method": request.method,
+                        "path": request.url.path,
+                        "status": 500,
+                        "duration_ms": duration_ms,
+                    }
+                },
+            )
+            raise
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         logger.info(
             "%s %s -> %s",
