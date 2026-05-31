@@ -13,6 +13,18 @@ def required_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEV_TOKEN", "PLACEHOLDER")
 
 
+@pytest.fixture(autouse=True)
+def abstain_reasoning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the reasoning pipeline to abstain so /packet serves the static
+    scaffold here — keeps these tests deterministic and offline (no Gemini call).
+    The live reasoned path is covered by test_packet_reasoning.py."""
+
+    async def _no_hypotheses(*args: object, **kwargs: object) -> list:
+        return []
+
+    monkeypatch.setattr("backend.app.reasoning.pipeline.run_reasoning", _no_hypotheses)
+
+
 def _auth_headers() -> dict[str, str]:
     return {"Authorization": "Bearer PLACEHOLDER"}
 
@@ -87,6 +99,27 @@ def test_packet_includes_completeness() -> None:
     first = completeness[0]
     assert "category" in first
     assert "documented" in first
+
+
+def test_packet_for_unknown_patient_serves_no_unresolvable_citation() -> None:
+    # A non-static patient's default scaffold hardcodes a Patient/pat-001 citation
+    # that does NOT resolve for them. The fallback must run it through the
+    # cache-authoritative gate and abstain — never serve an unresolvable citation.
+    with TestClient(app) as client:
+        resp = client.get("/patients/ghost-patient/packet", headers=_auth_headers())
+        assert resp.status_code == 200
+        body = resp.json()
+        for hyp in body["hypotheses"]:
+            for citation in hyp["citations"]:
+                if citation["kind"] == "resource":
+                    rtype, _, rid = citation["ref"].partition("/")
+                    res = client.get(
+                        f"/patients/ghost-patient/resource/{rtype}/{rid}",
+                        headers=_auth_headers(),
+                    )
+                    assert res.status_code == 200, f"unresolvable citation {citation['ref']}"
+    # The scaffold's only hypothesis cites Patient/pat-001 → dropped → abstains.
+    assert body["hypotheses"] == []
 
 
 def test_list_patients_connectors_and_refresh() -> None:
