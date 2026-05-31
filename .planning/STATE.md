@@ -13,25 +13,30 @@ Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
 Last activity: 2026-05-31 — working the merge queue one PR at a time (Claude deep-review per PR; Copilot errored/conflict-skipped on several). **MERGED #58** (MockFHIR, CONN-02, #11) + **#55** (Postgres cache, #12) + **#56** (openFDA, KNOW-02, #14). For #56 I rewrote the connector to REAL openFDA shapes (verified via a research workflow): per-seriousness counts via filtered total queries (not the fabricated meta.results the old code read), reaction frequency via `count=patient.reaction.reactionmeddrapt.exact`. An adversarial review workflow then caught 2 HIGH bugs the fixture suite masked — malformed `+AND+` encoding (httpx → `%2BAND%2B`) and a Lucene-injection hole in `_escape_value` — both fixed + locked with tests; MEDIUM hardening tracked in **#65**. Also set GSD to **Opus for every agent** (model_overrides) per user mandate, and **code-review depth = deep**. For #55 I extended the PR with refresh-on-read (CACHE-02/03): `expires_at` TTL + `get_or_refresh` under `pg_try_advisory_xact_lock` returning a `CacheStatus` for X-Cache, tz-safe expiry; then resolved a `requirements.txt` conflict vs planning by merging planning into the branch (kept `fhirpy 2.2.0` + `aiosqlite`) — that conflict was why `pull_request` CI was silently skipping (no mergeable commit). Full 5-package gate 100% on py3.12; backend CI green; approved + admin squash-merged. Set up **PR #62** (Claude auto-review Action — needs Bader to install the app + add a secret). Earlier: M0 validation audit (`phases/01-.../01-VALIDATION.md`) + quick task 260531-2sh (FE-07 + openapi regen, **PR #61**). Remaining audit gaps: no backend mypy in CI / CODEOWNERS routes only `.planning/`. **Follow-up owed:** wire `get_or_refresh` + X-Cache into `api/packet.py` off the `store.py` stand-in.
 
-Progress (Phase 1 / M0): [██████████] ~97% — M0 substantively complete; merge queue draining (#58, #55 in). Spilling into M1 prerequisites (MockFHIR + cache landed).
+Progress (Phase 1 / M0): [██████████] 100% — M0 complete. **M1 §22-slice SPINE COMPLETE on `planning`:** MockFHIR (#58) → cache+refresh-on-read (#55/#64) → openFDA (#56) → `/packet` with `X-Cache: HIT|REFRESH|MISS`. 5 PRs merged this session (#58/#55/#56/#61/#64). Remaining queue is widen-after-slice work (M2/M3/M4).
+
+**This session merged:** #58 MockFHIR (CONN-02), #55 cache (CACHE-01/02/03/04), #56 openFDA (KNOW-02), #61 FE-07+openapi (M0 audit gaps), #64 X-Cache /packet wiring (#13). Each: Claude deep-review (+ adversarial workflow for correctness-critical) → fix-forward → approve → admin squash-merge → close. Follow-ups: #65 (openFDA hardening), #66 (cache→API: live-PG concurrency test, cache_status SoT, non-pat-001).
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
-### Open PRs / In Review (working the queue one-by-one this session)
+### Open PRs / In Review (widen-after-slice work; queue continuing)
 
-- **#61 (FE-07 + openapi.json, feat/fe07-openapi-contract, Bader)** — closes the two material M0 audit gaps; frontend lint+tsc+vitest green (7/7), code-only branch, no AI-trace watermarks. Ready to merge. NEXT (mine, low-risk).
-- **#64 (#13 refresh-on-read, ha/issue-13, Hamza)** — ⚠️ OVERLAPS #55: I already shipped CACHE-02/03 (`get_or_refresh` + advisory lock + `CacheStatus`) in #55. Reconcile — likely close as superseded, OR salvage only the X-Cache **API wiring** (the outstanding follow-up) if it has it. Review carefully.
-- **#60 (#23 PostgresProvider, ha/issue-23, Hamza)** — MIS-TITLED "Database cache" but actually the **PostgresProvider hospital connector (CONN-03, M2)** + two institution SQL schemas. Touches `providers/__init__.py` → conflicts with merged #58; needs a planning merge. M2/Phase-3 scope.
-- **#63 (#33 observability, feat/observability-partial-warnings-33)** — structured logging + partial-data warning surfacing. M4/Phase-5 scope (OPS/INFRA). Review later.
-- **#59 (#27 PDF connector, feat/pdf-connector)** — CONN-04 char-offset provenance; Phase 4/M3 work. Review last.
-- **#62 (ci: Claude auto-review workflow, ci/claude-auto-review, Bader)** — adds the Claude GitHub Action; merge after Bader installs the app + secret.
-- **#65 (open issue, not a PR)** — openFDA hardening follow-ups from the #56 review (malformed-data safety, Retry-After, serious-umbrella, raw_* aliasing, id determinism, bucket lock). Non-blocking.
+- **#60 (#23 PostgresProvider, ha/issue-23, Hamza)** — PostgresProvider hospital connector (CONN-03, M2) + two institution SQL schemas. Touches `providers/__init__.py` → conflicts with merged #58; needs a planning merge. NEXT.
+- **#63 (#33 observability, feat/observability-partial-warnings-33)** — structured logging + partial-data warning surfacing. M4/Phase-5 scope.
+- **#59 (#27 PDF connector, feat/pdf-connector)** — CONN-04 char-offset provenance; M3/Phase-4. Review last.
+- **#62 (ci: Claude auto-review workflow, ci/claude-auto-review, Bader)** — adds the Claude GitHub Action; merge after Bader installs the app + secret (admin-only steps).
+
+### Open follow-up issues (non-blocking)
+- **#65** — openFDA hardening (malformed-data safety, Retry-After, serious-umbrella, raw_* aliasing, id determinism, bucket lock).
+- **#66** — cache→API (live-PG concurrency test for the once-only guarantee, `cache_status` single-source, non-pat-001 packets).
 
 ### Done (on `planning`, green) — this session's merges
 
 - **#11 MockFHIR connector (PR #58, merged `b124bfd`)** — `providers/mock_fhir.py` `MockFHIRProvider` (CONN-02): snapshot-first HAPI R4 fetch, trims+validates the 6 types, honest coverage/provenance, ABC-conformant. Fix-forward applied (partial flag, fhirpy 2.2.0, dropped aiosqlite). `app/providers` 100% on py3.12.
 - **#12 Postgres cache (PR #55, merged `dfc63ee`)** — `cache/models.py` (CachedResource/EvidenceCard/AuditEvent, JSONB↔JSON variant), `cache/repo.py`: idempotent upsert (CACHE-01), audit-on-read (CACHE-04), **refresh-on-read (CACHE-02/03)** — `expires_at` TTL + `get_or_refresh` under `pg_try_advisory_xact_lock` (winner re-pulls, losers serve cache) → `CacheStatus` for X-Cache, tz-safe expiry. Extended by Bader during review; requirements conflict vs planning resolved. `app/cache` 100% on py3.12. Follow-up: wire into `api/packet.py` off the `store.py` stand-in (covers issue #13 — see PR #64 overlap).
 - **#14 openFDA connector (PR #56, merged `cd1607f`)** — `knowledge/openfda.py` (KNOW-02): adverse-event + label lookups; real-shaped queries (per-seriousness filtered totals, `count=` reaction frequency), evidence snippets with stable resolvable IDs, token-bucket + bounded TTL cache. Rewritten from fabricated `meta.results` shapes → real API; 2 HIGH review bugs fixed (AND encoding, Lucene injection). `app/knowledge` 100% on py3.12. Hardening follow-ups in #65.
+- **FE-07 + openapi.json (PR #61, merged `b6bf763`)** — global bearer `.use()` middleware (per-request token) + `openapi-react-query` `$api`; `openapi.json` regenerated from the live API. Closes the two material M0 audit gaps (FE-07, API-08).
+- **#13 X-Cache /packet wiring (PR #64, merged `3a443d0`)** — `api/packet.py` serves `/packet` via `repo.get_or_refresh` with `X-Cache: HIT|REFRESH|MISS`; lifespan-managed async engine + `session_factory`; `/refresh` upserts; `CACHE_TTL_SECONDS`. Completes the §22 slice spine. Fix-forward: removed MISS double-fetch; honest concurrency-test scope (live-PG test → #66).
 
 ### Done (on `planning`, green)
 
