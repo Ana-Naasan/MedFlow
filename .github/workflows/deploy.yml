@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # push to GHCR with GITHUB_TOKEN
+      packages: write # push to GHCR with GH_TOKEN
     env:
       GHCR_BASE: ghcr.io/${{ github.repository_owner }}
       GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
@@ -24,6 +24,9 @@ jobs:
       GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
       BACKEND_SERVICE: umraa-backend
       FRONTEND_SERVICE: umraa-frontend
+      GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
+      OPENFDA_API_KEY: ${{ secrets.OPENFDA_API_KEY }}
+      DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +47,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GH_TOKEN }}
 
       - name: Build & push backend → GHCR
         uses: docker/build-push-action@v6
@@ -97,7 +100,8 @@ jobs:
           gcloud run deploy "$BACKEND_SERVICE" \
             --image "$AR_BASE/umraa-backend:${{ steps.img.outputs.sha }}" \
             --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
-            --platform managed --allow-unauthenticated --port 8080
+            --platform managed --allow-unauthenticated --port 8080 \
+            --set-env-vars "GOOGLE_GENAI_API_KEY=$GOOGLE_GENAI_API_KEY,OPENFDA_API_KEY=$OPENFDA_API_KEY,DEV_TOKEN=$DEV_TOKEN"
 
       - name: Deploy frontend to Cloud Run
         if: ${{ env.GCP_SA_KEY != '' }}
