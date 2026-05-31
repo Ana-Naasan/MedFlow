@@ -43,6 +43,30 @@ _KNOWN_CITATION_KINDS: frozenset[str] = frozenset({"resource", "evidence"})
 # from being treated as a resolvable patient tag (forged-citation defence).
 _TAG_RE = re.compile(r"^\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]", re.MULTILINE)
 
+# Deterministic output-language guard (AI-SPEC §5 dim 3; EVAL-REVIEW BLOCKER).
+# The prompt INSTRUCTS associational phrasing — this ENFORCES it: any surfaced
+# title/why asserting causation or a prescriptive drug directive is dropped,
+# mirroring the fail-closed posture of the citation gate so the non-negotiable
+# output-language invariant ("may be associated", never "caused by"/"stop drug X")
+# does not depend on model compliance. NOTE: the phrase set is intentionally
+# conservative (canonical violations only, to avoid flagging valid associational
+# text like "increased risk") and is meant for clinical/team review before this
+# gate is relied upon in production — see #75.
+_FORBIDDEN_LANGUAGE = re.compile(
+    r"\bcaused\s+by\b"  # causal attribution
+    r"|\bdiscontinue\b"  # drug directive
+    r"|\bstop\s+taking\b"  # drug directive
+    r"|\bmust\s+(?:stop|start)\b",  # prescriptive directive
+    re.IGNORECASE,
+)
+
+
+def _has_forbidden_language(h: Hypothesis) -> bool:
+    """True if the hypothesis's surfaced prose (title/why) violates the
+    associational-only output-language invariant."""
+    return bool(_FORBIDDEN_LANGUAGE.search(f"{h.title}\n{h.why}"))
+
+
 # ── Client factory ─────────────────────────────────────────────────────────
 
 
@@ -271,5 +295,9 @@ async def run_reasoning(
 
     evidence_ids = {s.id for s in evidence}
     hypotheses = verify_citations(hypotheses, flattened_text, evidence_ids)
+
+    # Deterministic output-language gate: drop any hypothesis whose prose asserts
+    # causation or a prescriptive directive (don't trust the prompt alone).
+    hypotheses = [h for h in hypotheses if not _has_forbidden_language(h)]
 
     return hypotheses

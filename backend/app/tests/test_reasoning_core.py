@@ -22,6 +22,7 @@ from backend.app.knowledge.openfda import EvidenceSnippet
 from backend.app.reasoning.core import (
     _extract_patient_tags,
     _get_client,
+    _has_forbidden_language,
     _strip_brackets,
     parse_gemini_response,
     run_reasoning,
@@ -139,6 +140,39 @@ class TestExtractPatientTags:
         tags = _extract_patient_tags(text)
         assert tags == {"Observation/obs-1"}
         assert "Condition/forged-injected" not in tags
+
+
+# ── _has_forbidden_language (output-language guard) ─────────────────────────
+
+
+class TestForbiddenLanguage:
+    @pytest.mark.parametrize(
+        "title,why",
+        [
+            ("", "The bleeding was caused by warfarin."),
+            ("", "Discontinue the aspirin."),
+            ("", "Consider whether to stop taking metformin."),
+            ("Patient must stop lisinopril", ""),
+        ],
+    )
+    def test_flags_causal_and_directive_language(self, title: str, why: str) -> None:
+        h = Hypothesis(id="h", title=title, why=why, severity="moderate", confidence="low")
+        assert _has_forbidden_language(h) is True
+
+    @pytest.mark.parametrize(
+        "why",
+        [
+            "Warfarin and aspirin together may be associated with an increased bleeding risk.",
+            "This combination is associated with a higher fall risk — consider reviewing.",
+            "No specific concern; documentation is incomplete.",
+        ],
+    )
+    def test_allows_associational_language(self, why: str) -> None:
+        """Must NOT false-positive on valid associational phrasing (e.g. 'increased risk')."""
+        h = Hypothesis(
+            id="h", title="Bleeding risk", why=why, severity="moderate", confidence="low"
+        )
+        assert _has_forbidden_language(h) is False
 
 
 # ── parse_gemini_response ──────────────────────────────────────────────────
@@ -515,6 +549,47 @@ class TestRunReasoning:
         assert len(h.citations) == 2
         assert h.citations[0].kind == "resource"
         assert h.citations[1].kind == "evidence"
+
+    @pytest.mark.asyncio
+    async def test_drops_hypothesis_with_forbidden_language(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """A hypothesis with fully-resolvable citations is STILL dropped if its
+        prose asserts causation/directives — the deterministic output-language
+        gate runs after verification (AI-SPEC dim 3)."""
+        response_text = json.dumps(
+            {
+                "hypotheses": [
+                    {
+                        "title": "Hypotension",
+                        "why": "The dizziness was caused by lisinopril.",
+                        "severity": "moderate",
+                        "confidence": "medium",
+                        "citations": [
+                            {"kind": "resource", "ref": "MedicationStatement/ms-001", "label": "x"}
+                        ],
+                    }
+                ]
+            }
+        )
+        mock_response = MagicMock()
+        mock_response.text = response_text
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.return_value = mock_response
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(sample_flattened_text, sample_evidence_snippets)
+
+        assert hypotheses == []  # citation resolved, but "caused by" prose is dropped
 
     @pytest.mark.asyncio
     async def test_abstention_on_gemini_api_error(
