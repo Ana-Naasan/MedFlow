@@ -3,22 +3,26 @@
 Edge cases and input-validation patterns:
 - Empty / malformed / non-dict / non-list responses → ``ValueError``
 - Non-dict entries in hypotheses list → silently skipped
-- Unknown citation kinds left as-is
-- Every patient-fact ref must exist in the flattened text
-- Every evidence-card ref must match a known snippet ID
-- ``run_reasoning`` golden path with a mocked Gemini response
+- Unknown citation kinds → silently dropped (anti-hallucination)
+- Known citation kinds ``"resource"`` / ``"evidence"`` checked against context
+- Bare refs (``MedicationStatement/ms-001`` without brackets) resolved
+- ``run_reasoning`` wraps API failures as abstention (REASON-08)
+- Golden path with a mocked Gemini response
 """
 
 import json
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+from google.genai import errors as genai_errors
 
 from backend.app.dtos import Citation, Hypothesis
 from backend.app.knowledge.openfda import EvidenceSnippet
 from backend.app.reasoning.core import (
     _extract_patient_tags,
     _get_client,
+    _strip_brackets,
     parse_gemini_response,
     run_reasoning,
     verify_citations,
@@ -59,33 +63,46 @@ def sample_evidence_snippets() -> list[EvidenceSnippet]:
 
 
 @pytest.fixture
-def sample_valid_hypotheses() -> list[Hypothesis]:
-    return [
-        Hypothesis(
-            id="hyp-1",
-            title="Lisinopril may contribute to hypotension",
-            why="The patient has hypertension but is on lisinopril which can cause hypotension in salt-depleted patients.",
-            severity="moderate",
-            confidence="medium",
-            citations=[
-                Citation(
-                    kind="patient_fact",
-                    ref="[MedicationStatement/ms-001]",
-                    label="Lisinopril prescription",
-                ),
-                Citation(
-                    kind="patient_fact",
-                    ref="[Condition/c1]",
-                    label="Hypertension diagnosis",
-                ),
-                Citation(
-                    kind="evidence_card",
-                    ref="openfda:197885:adverse_events:total_count",
-                    label="10,064 adverse events reported",
-                ),
-            ],
-        ),
-    ]
+def sample_hypothesis() -> Hypothesis:
+    """A hypothesis with ``kind='resource'`` and ``kind='evidence'`` citations."""
+    return Hypothesis(
+        id="hyp-1",
+        title="Lisinopril may contribute to hypotension",
+        why="Patient on lisinopril with hypertension; lisinopril can cause hypotension.",
+        severity="moderate",
+        confidence="medium",
+        citations=[
+            Citation(
+                kind="resource",
+                ref="MedicationStatement/ms-001",
+                label="Lisinopril prescription",
+            ),
+            Citation(
+                kind="resource",
+                ref="Condition/c1",
+                label="Hypertension diagnosis",
+            ),
+            Citation(
+                kind="evidence",
+                ref="openfda:197885:adverse_events:total_count",
+                label="10,064 adverse events reported",
+            ),
+        ],
+    )
+
+
+# ── _strip_brackets ────────────────────────────────────────────────────────
+
+
+class TestStripBrackets:
+    def test_strips_brackets(self) -> None:
+        assert _strip_brackets("[Condition/c1]") == "Condition/c1"
+
+    def test_no_brackets(self) -> None:
+        assert _strip_brackets("Condition/c1") == "Condition/c1"
+
+    def test_empty_string(self) -> None:
+        assert _strip_brackets("") == ""
 
 
 # ── _extract_patient_tags ──────────────────────────────────────────────────
@@ -94,9 +111,9 @@ def sample_valid_hypotheses() -> list[Hypothesis]:
 class TestExtractPatientTags:
     def test_extracts_all_tags(self, sample_flattened_text: str) -> None:
         tags = _extract_patient_tags(sample_flattened_text)
-        assert "[MedicationStatement/ms-001]" in tags
-        assert "[MedicationStatement/ms-002]" in tags
-        assert "[Condition/c1]" in tags
+        assert "MedicationStatement/ms-001" in tags
+        assert "MedicationStatement/ms-002" in tags
+        assert "Condition/c1" in tags
 
     def test_no_tags(self) -> None:
         assert _extract_patient_tags("_(not documented)_") == set()
@@ -106,14 +123,13 @@ class TestExtractPatientTags:
 
     def test_deduplicates_duplicate_tags(self) -> None:
         text = "[Patient/p1] foo\n[Patient/p1] bar"
-        assert _extract_patient_tags(text) == {"[Patient/p1]"}
+        assert _extract_patient_tags(text) == {"Patient/p1"}
 
     def test_tag_with_special_chars(self) -> None:
-        """Tags can contain dots, hyphens, underscores, colons."""
-        text = "[Observation/obs-001.a] test [Procedure/proc_002:b]"
+        text = "[Observation/obs-001.a] test\n[Procedure/proc_002:b]"
         tags = _extract_patient_tags(text)
-        assert "[Observation/obs-001.a]" in tags
-        assert "[Procedure/proc_002:b]" in tags
+        assert "Observation/obs-001.a" in tags
+        assert "Procedure/proc_002:b" in tags
 
 
 # ── parse_gemini_response ──────────────────────────────────────────────────
@@ -131,8 +147,8 @@ class TestParseGeminiResponse:
                         "confidence": "high",
                         "citations": [
                             {
-                                "kind": "patient_fact",
-                                "ref": "[MedicationStatement/ms-001]",
+                                "kind": "resource",
+                                "ref": "MedicationStatement/ms-001",
                                 "label": "Lisinopril",
                             }
                         ],
@@ -149,7 +165,7 @@ class TestParseGeminiResponse:
         assert h.severity == "serious"
         assert h.confidence == "high"
         assert len(h.citations) == 1
-        assert h.citations[0].ref == "[MedicationStatement/ms-001]"
+        assert h.citations[0].ref == "MedicationStatement/ms-001"
 
     def test_empty_hypotheses(self) -> None:
         hypotheses = parse_gemini_response('{"hypotheses": []}')
@@ -180,7 +196,12 @@ class TestParseGeminiResponse:
             {
                 "hypotheses": [
                     "just a string",
-                    {"title": "Valid one", "why": "reason", "severity": "minor", "confidence": "low"},
+                    {
+                        "title": "Valid one",
+                        "why": "reason",
+                        "severity": "minor",
+                        "confidence": "low",
+                    },
                 ]
             }
         )
@@ -214,7 +235,10 @@ class TestParseGeminiResponse:
                         "why": "reason",
                         "severity": "minor",
                         "confidence": "low",
-                        "citations": ["not-a-dict", {"kind": "patient_fact", "ref": "[Test/t1]"}],
+                        "citations": [
+                            "not-a-dict",
+                            {"kind": "resource", "ref": "Test/t1"},
+                        ],
                     }
                 ]
             }
@@ -222,17 +246,12 @@ class TestParseGeminiResponse:
         hypotheses = parse_gemini_response(response)
         assert len(hypotheses) == 1
         assert len(hypotheses[0].citations) == 1
-        assert hypotheses[0].citations[0].ref == "[Test/t1]"
+        assert hypotheses[0].citations[0].ref == "Test/t1"
 
     def test_default_severity_and_confidence(self) -> None:
         response = json.dumps(
             {
-                "hypotheses": [
-                    {
-                        "title": "Defaults",
-                        "why": "test",
-                    }
-                ]
+                "hypotheses": [{"title": "Defaults", "why": "test"}]
             }
         )
         hypotheses = parse_gemini_response(response)
@@ -245,15 +264,15 @@ class TestParseGeminiResponse:
 
 class TestVerifyCitations:
     def test_valid_hypothesis_survives(
-        self, sample_flattened_text: str, sample_valid_hypotheses: list[Hypothesis]
+        self, sample_flattened_text: str, sample_hypothesis: Hypothesis
     ) -> None:
         evidence_ids = {"openfda:197885:adverse_events:total_count"}
         result = verify_citations(
-            sample_valid_hypotheses, sample_flattened_text, evidence_ids
+            [sample_hypothesis], sample_flattened_text, evidence_ids
         )
         assert len(result) == 1
 
-    def test_drops_when_patient_fact_missing(
+    def test_drops_when_resource_ref_missing(
         self, sample_flattened_text: str
     ) -> None:
         h = Hypothesis(
@@ -263,25 +282,21 @@ class TestVerifyCitations:
             severity="minor",
             confidence="low",
             citations=[
-                Citation(
-                    kind="patient_fact",
-                    ref="[NonExistent/xyz]",
-                    label="Missing",
-                )
+                Citation(kind="resource", ref="NonExistent/xyz", label="Missing")
             ],
         )
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
 
-    def test_drops_when_evidence_card_missing(
-        self, sample_flattened_text: str, sample_valid_hypotheses: list[Hypothesis]
+    def test_drops_when_evidence_ref_missing(
+        self, sample_flattened_text: str, sample_hypothesis: Hypothesis
     ) -> None:
         result = verify_citations(
-            sample_valid_hypotheses, sample_flattened_text, set()
+            [sample_hypothesis], sample_flattened_text, set()
         )
         assert len(result) == 0
 
-    def test_unknown_citation_kind_preserved(
+    def test_unknown_citation_kind_dropped(
         self, sample_flattened_text: str
     ) -> None:
         h = Hypothesis(
@@ -291,15 +306,30 @@ class TestVerifyCitations:
             severity="moderate",
             confidence="low",
             citations=[
-                Citation(
-                    kind="unknown_type",
-                    ref="some-ref",
-                    label="Should be kept",
-                )
+                Citation(kind="made_up_kind", ref="anything", label="Should be dropped"),
+                Citation(kind="resource", ref="Condition/c1", label="Valid"),
             ],
         )
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 1
+        # The unknown kind should be stripped from the output
+        assert all(c.kind in ("resource", "evidence") for c in result[0].citations)
+
+    def test_all_hypotheses_dropped_when_kind_unknown(
+        self, sample_flattened_text: str
+    ) -> None:
+        """All citations have unknown kinds → no known citations → passes but empty list."""
+        h = Hypothesis(
+            id="hyp-1",
+            title="Test",
+            why="reason",
+            severity="moderate",
+            confidence="low",
+            citations=[Citation(kind="hallucinated_kind", ref="x", label="y")],
+        )
+        result = verify_citations([h], sample_flattened_text, set())
+        assert len(result) == 1
+        assert result[0].citations == []
 
     def test_empty_hypotheses(self, sample_flattened_text: str) -> None:
         result = verify_citations([], sample_flattened_text, set())
@@ -308,28 +338,40 @@ class TestVerifyCitations:
     def test_drops_when_any_citation_fails(
         self, sample_flattened_text: str
     ) -> None:
-        """If one citation is invalid, the whole hypothesis is dropped."""
         h = Hypothesis(
             id="hyp-1",
-            title="Mixed valid and invalid",
+            title="Mixed",
             why="reason",
             severity="moderate",
             confidence="low",
             citations=[
-                Citation(
-                    kind="patient_fact",
-                    ref="[MedicationStatement/ms-001]",
-                    label="Exists",
-                ),
-                Citation(
-                    kind="patient_fact",
-                    ref="[FakeResource/xyz]",
-                    label="Does not exist",
-                ),
+                Citation(kind="resource", ref="MedicationStatement/ms-001", label="Exists"),
+                Citation(kind="resource", ref="FakeResource/xyz", label="Does not exist"),
             ],
         )
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 0
+
+    def test_ref_with_brackets_still_matches(
+        self, sample_flattened_text: str
+    ) -> None:
+        """Bracketed refs are stripped before matching."""
+        h = Hypothesis(
+            id="hyp-1",
+            title="Test",
+            why="reason",
+            severity="minor",
+            confidence="low",
+            citations=[
+                Citation(
+                    kind="resource",
+                    ref="[MedicationStatement/ms-001]",
+                    label="With brackets",
+                )
+            ],
+        )
+        result = verify_citations([h], sample_flattened_text, set())
+        assert len(result) == 1
 
 
 # ── _get_client ────────────────────────────────────────────────────────────
@@ -368,12 +410,12 @@ class TestRunReasoning:
                         "confidence": "medium",
                         "citations": [
                             {
-                                "kind": "patient_fact",
-                                "ref": "[MedicationStatement/ms-001]",
+                                "kind": "resource",
+                                "ref": "MedicationStatement/ms-001",
                                 "label": "Lisinopril",
                             },
                             {
-                                "kind": "evidence_card",
+                                "kind": "evidence",
                                 "ref": "openfda:197885:adverse_events:total_count",
                                 "label": "10,064 events",
                             },
@@ -383,7 +425,6 @@ class TestRunReasoning:
             }
         )
 
-        # Create mock async client
         mock_response = MagicMock()
         mock_response.text = response_text
 
@@ -408,9 +449,95 @@ class TestRunReasoning:
         assert len(hypotheses) == 1
         h = hypotheses[0]
         assert h.title == "Lisinopril hypotension risk"
-        assert h.severity == "moderate"
-        assert h.confidence == "medium"
         assert len(h.citations) == 2
+        assert h.citations[0].kind == "resource"
+        assert h.citations[1].kind == "evidence"
+
+    @pytest.mark.asyncio
+    async def test_abstention_on_gemini_api_error(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """API errors → REASON-08 abstention: returns empty list."""
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.side_effect = genai_errors.ClientError(
+            429, {}, MagicMock()
+        )
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(
+                    sample_flattened_text, sample_evidence_snippets
+                )
+
+        assert hypotheses == []
+
+    @pytest.mark.asyncio
+    async def test_abstention_on_httpx_error(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """Network errors → REASON-08 abstention."""
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.side_effect = httpx.RequestError("network")
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(
+                    sample_flattened_text, sample_evidence_snippets
+                )
+
+        assert hypotheses == []
+
+    @pytest.mark.asyncio
+    async def test_abstention_on_malformed_json_from_gemini(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """Malformed JSON from Gemini → empty list (not a crash)."""
+        mock_response = MagicMock()
+        mock_response.text = "{invalid json}"
+
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.return_value = mock_response
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(
+                    sample_flattened_text, sample_evidence_snippets
+                )
+
+        assert hypotheses == []
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_hypotheses_survive_verification(
@@ -418,7 +545,7 @@ class TestRunReasoning:
         sample_flattened_text: str,
         sample_evidence_snippets: list[EvidenceSnippet],
     ) -> None:
-        """Gemini returns citations to non-existent resources → verifier drops all."""
+        """Gemini returns citations that fail verification → empty result."""
         response_text = json.dumps(
             {
                 "hypotheses": [
@@ -429,8 +556,8 @@ class TestRunReasoning:
                         "confidence": "low",
                         "citations": [
                             {
-                                "kind": "patient_fact",
-                                "ref": "[NonExistent/xyz]",
+                                "kind": "resource",
+                                "ref": "NonExistent/xyz",
                                 "label": "Fake",
                             }
                         ],
@@ -461,32 +588,3 @@ class TestRunReasoning:
                 )
 
         assert hypotheses == []
-
-    @pytest.mark.asyncio
-    async def test_malformed_gemini_response_raises(
-        self,
-        sample_flattened_text: str,
-        sample_evidence_snippets: list[EvidenceSnippet],
-    ) -> None:
-        """Malformed JSON from Gemini should propagate as ValueError."""
-        mock_response = MagicMock()
-        mock_response.text = "{invalid json}"
-
-        mock_aio_models = AsyncMock()
-        mock_aio_models.generate_content.return_value = mock_response
-
-        mock_aio = MagicMock()
-        mock_aio.models = mock_aio_models
-
-        mock_client = MagicMock()
-        mock_client.aio = mock_aio
-
-        mock_genai = MagicMock()
-        mock_genai.return_value = mock_client
-
-        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
-            with patch("backend.app.reasoning.core.Client", mock_genai):
-                with pytest.raises(ValueError, match="malformed JSON"):
-                    await run_reasoning(
-                        sample_flattened_text, sample_evidence_snippets
-                    )

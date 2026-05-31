@@ -19,8 +19,11 @@ SYSTEM_INSTRUCTION = (
     "1. ONLY reference facts that are explicitly present in the text below. "
     "Do NOT invent or assume any facts that are not written here.\n"
     "2. Every suggestion MUST cite its sources using the exact tags you see:\n"
-    "   - Patient facts use tags like `[MedicationStatement/ms-001]` or `[Condition/cond-001]`\n"
-    "   - Evidence cards use their stable IDs like `openfda:197885:adverse_events:total_count`\n"
+    "   - Patient facts use tags like `[MedicationStatement/ms-001]` — "
+    "use kind `\"resource\"` and ref `\"MedicationStatement/ms-001\"` (no brackets)\n"
+    "   - Evidence cards use their stable IDs like "
+    "`openfda:197885:adverse_events:total_count` — "
+    "use kind `\"evidence\"` and ref set to the full ID\n"
     "3. Provide a confidence level: `\"high\"`, `\"medium\"`, or `\"low\"`.\n"
     "4. Provide a severity level: `\"critical\"`, `\"serious\"`, `\"moderate\"`, or `\"minor\"`.\n"
     "5. If there is not enough information to form any suggestion, "
@@ -36,9 +39,9 @@ SYSTEM_INSTRUCTION = (
     '      "severity": "critical|serious|moderate|minor",\n'
     '      "confidence": "high|medium|low",\n'
     '      "citations": [\n'
-    '        {"kind": "patient_fact", "ref": "[ResourceType/id]", '
+    '        {"kind": "resource", "ref": "MedicationStatement/ms-001", '
     '"label": "Brief description of the fact"},\n'
-    '        {"kind": "evidence_card", "ref": "evidence-snippet-id", '
+    '        {"kind": "evidence", "ref": "openfda:197885:adverse_events:total_count", '
     '"label": "Brief description of the evidence"}\n'
     '      ]\n'
     '    }\n'

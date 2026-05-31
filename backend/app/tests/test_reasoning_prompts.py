@@ -61,7 +61,6 @@ class TestFormatEvidence:
             ),
         ]
         result = _format_evidence(snippets)
-        # 200-char slice, no trailing "..."
         assert result.count("x") == 200
 
 
@@ -99,8 +98,8 @@ class TestBuildPrompt:
     def test_output_format_instructions_present(self) -> None:
         prompt = build_reasoning_prompt("_(not documented)_", [])
         assert '"hypotheses"' in prompt
-        assert "patient_fact" in prompt
-        assert "evidence_card" in prompt
+        assert '"resource"' in prompt
+        assert '"evidence"' in prompt
         assert "severity" in prompt
         assert "confidence" in prompt
         assert "critical|serious|moderate|minor" in prompt
@@ -112,7 +111,6 @@ class TestBuildPrompt:
         assert "Do NOT invent" in prompt
 
     def test_patient_text_with_no_evidence(self) -> None:
-        """Evidence section shows fallback when no snippets provided."""
         prompt = build_reasoning_prompt(
             "## Conditions\n\n[Condition/c1] Hypertension — active, confirmed",
             [],
@@ -136,7 +134,7 @@ class TestBuildPrompt:
         """Verify every Hypothesis field appears in the prompt instructions."""
         prompt = build_reasoning_prompt("_(not documented)_", [])
         for field in ("title", "why", "severity", "confidence", "citations"):
-            assert field in prompt, f"Field '{field}' missing from prompt instructions"
+            assert field in prompt
 
     def test_evidence_snippet_ids_preserved(self) -> None:
         """Snippet IDs appear exactly once and match the input."""
@@ -151,3 +149,10 @@ class TestBuildPrompt:
         prompt = build_reasoning_prompt("_(not documented)_", snippets)
         assert "openfda:197885:adverse_events:death_count" in prompt
         assert "42 events involved death." in prompt
+
+    def test_prompt_refs_no_brackets(self) -> None:
+        """Prompt instructs model to use ref without brackets for resource kind."""
+        prompt = build_reasoning_prompt("_(not documented)_", [])
+        assert '"kind": "resource"' in prompt
+        assert '"ref": "MedicationStatement/ms-001"' in prompt
+        assert '"kind": "evidence"' in prompt

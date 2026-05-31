@@ -19,7 +19,9 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
+import httpx
 from google.genai import Client, types
+from google.genai import errors as genai_errors
 
 from backend.app.dtos import Citation, Hypothesis
 from backend.app.knowledge.openfda import EvidenceSnippet
@@ -29,8 +31,15 @@ from backend.app.reasoning.prompts import build_reasoning_prompt
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 
+# Known citation kinds that the verifier will check.  Any citation whose
+# kind is outside this set is silently dropped (anti-hallucination).
+_KNOWN_CITATION_KINDS: frozenset[str] = frozenset({"resource", "evidence"})
+
 # Regex to extract ``[ResourceType/id]`` from flattened patient text.
-_TAG_RE = re.compile(r"\[[A-Za-z]+/[a-zA-Z0-9_.:-]+]")
+_TAG_RE = re.compile(r"\[([A-Za-z]+/[a-zA-Z0-9_.:-]+)]")
+
+# Regex to extract bare ``ResourceType/id`` (without brackets).
+_BARE_TAG_RE = re.compile(r"[A-Za-z]+/[a-zA-Z0-9_.:-]+")
 
 
 # ── Client factory ─────────────────────────────────────────────────────────
@@ -95,7 +104,6 @@ def parse_gemini_response(response_text: str) -> list[Hypothesis]:
     results: list[Hypothesis] = []
     for i, raw in enumerate(raw_hypotheses):
         if not isinstance(raw, dict):
-            # Skip non-dict entries silently rather than crashing
             continue
         results.append(
             Hypothesis(
@@ -118,12 +126,26 @@ def parse_gemini_response(response_text: str) -> list[Hypothesis]:
     return results
 
 
-# ── Citation verifier (REASON-02) ──────────────────────────────────────────
+# ── Citation helpers ───────────────────────────────────────────────────────
 
 
 def _extract_patient_tags(flattened_text: str) -> set[str]:
-    """Return every ``[ResourceType/id]`` tag in the flattened text."""
+    """Return every bare ``ResourceType/id`` tag in the flattened text."""
     return set(_TAG_RE.findall(flattened_text))
+
+
+def _strip_brackets(ref: str) -> str:
+    """Remove surrounding ``[`` ``]`` from a tag, if present.
+
+    >>> _strip_brackets("[Condition/c1]")
+    'Condition/c1'
+    >>> _strip_brackets("Condition/c1")
+    'Condition/c1'
+    """
+    return ref.strip("[]") if ref.startswith("[") else ref
+
+
+# ── Citation verifier (REASON-02) ──────────────────────────────────────────
 
 
 def verify_citations(
@@ -134,11 +156,15 @@ def verify_citations(
     """Drop hypotheses whose citations cannot be resolved (REASON-02).
 
     A citation is resolved when:
-    * ``kind == "patient_fact"`` — its ``ref`` (e.g. ``[Condition/c1]``)
-      exists as a tag in the flattened patient text.
-    * ``kind == "evidence_card"`` — its ``ref`` matches one of the
+    * ``kind == "resource"`` — its ``ref`` (e.g. ``Patient/pat-001``
+      or ``[Patient/pat-001]``) exists as a tag in the flattened text.
+    * ``kind == "evidence"`` — its ``ref`` matches one of the
       provided *evidence_ids*.
-    * For unknown citation kinds the citation is left as-is.
+    * Any citation whose ``kind`` is not in the known set is silently
+      dropped (anti-hallucination on unknown kinds).
+
+    If **any** verified citation in a hypothesis fails to resolve,
+    the entire hypothesis is dropped.
 
     Parameters
     ----------
@@ -152,8 +178,7 @@ def verify_citations(
     Returns
     -------
     list[Hypothesis]
-        Surviving hypotheses.  If **any** citation in a hypothesis
-        fails to resolve, the entire hypothesis is dropped.
+        Surviving hypotheses.
     """
     if not hypotheses:
         return hypotheses
@@ -162,17 +187,24 @@ def verify_citations(
 
     verified: list[Hypothesis] = []
     for h in hypotheses:
+        # Filter out unknown citation kinds, then check surviving ones.
+        known_citations = [
+            c for c in h.citations if c.kind in _KNOWN_CITATION_KINDS
+        ]
         valid = True
-        for c in h.citations:
-            if c.kind == "patient_fact":
-                if c.ref not in patient_tags:
+        for c in known_citations:
+            if c.kind == "resource":
+                bare_ref = _strip_brackets(c.ref)
+                if bare_ref not in patient_tags:
                     valid = False
                     break
-            elif c.kind == "evidence_card":
+            elif c.kind == "evidence":
                 if c.ref not in evidence_ids:
                     valid = False
                     break
         if valid:
+            # Keep only known citations in the output hypothesis
+            h.citations = known_citations
             verified.append(h)
     return verified
 
@@ -194,6 +226,10 @@ async def run_reasoning(
     4. Verify that every citation resolves (REASON-02).
     5. Return the surviving hypotheses.
 
+    If the Gemini API call fails (network error, rate limit, auth failure)
+    the error is caught and an empty list is returned — the caller should
+    interpret this as "abstention" (REASON-08).
+
     Parameters
     ----------
     flattened_text : str
@@ -213,16 +249,23 @@ async def run_reasoning(
     client = _get_client()
     aio = client.aio
 
-    response = await aio.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.0,
-        ),
-    )
+    try:
+        response = await aio.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.0,
+            ),
+        )
+    except (genai_errors.ClientError, httpx.HTTPStatusError, httpx.RequestError):
+        # REASON-08: abstention — cannot produce any hypotheses
+        return []
 
-    hypotheses = parse_gemini_response(response.text)
+    try:
+        hypotheses = parse_gemini_response(response.text)
+    except ValueError:
+        return []
 
     evidence_ids = {s.id for s in evidence}
     hypotheses = verify_citations(hypotheses, flattened_text, evidence_ids)
