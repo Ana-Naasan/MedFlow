@@ -11,15 +11,17 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — cleared the PR queue with full code+test review → approval → admin squash-merge → close, for both PR #47 (#21 drug-knowledge seeds) and PR #48 (#5 FHIR subset/refs/minimize). Took Copilot's bot reviews into account on both (details under Blockers). Queue empty; `planning` synced; working tree clean.
+Last activity: 2026-05-31 — merged PR #47 (#21 seeds), #48 (#5 FHIR subset), and #53 (my fix-forward for the #21 Copilot data findings: ACB RxCUIs re-derived from RxNav + nortriptyline dedupe + SOURCES.md provenance corrections). New PR queue arrived: #50 (#28 HL7v2), #51 (#17 packet API), #52 (#6 flattener — resolves the gap). Took Copilot reviews into account throughout.
 
 Progress (Phase 1 / M0): [██████▌░░░] ~65%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
-### Open PRs / In Review
+### Open PRs / In Review (awaiting code+test+Copilot review then merge)
 
-_None — queue clear._
+- #50 (#28 HL7v2 ADT scaffold connector, Vivek)
+- #51 (#17 hour-6 packet API slice, Hamza)
+- #52 (#6 FHIR tagged-text flattener, Vivek) — delivers FHIR-03/04, the deterministic citation-tagged context (the gap previously flagged)
 
 ### Done (on `planning`, green)
 
@@ -30,13 +32,13 @@ _None — queue clear._
 - #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
 - #9 (partial) — required-secret config guard + `.env` placeholders merged (PR #46). #9 stays OPEN until real Gemini/openFDA keys are provisioned in local `.env`.
 - #21 seed data — DDInter (10k interaction pairs), ACB scale, AGS 2023 Beers, Synthea sample FHIR bundle + text-layer clinical PDF vendored to `backend/app/seeds/` with provenance (SOURCES.md) + typed loaders + 26 tests (PR #47). Synthetic data only.
-- #5 FHIR subset — `fhir/subset.py` (6 validated R4B builders via `fhir.resources.R4B.*` killing the R5-default gotcha + `reasoning_view` SEC-02 minimization: strips name/address/telecom/contact, drops birthDate→`ageYears`, keeps MRN-only identifiers, recursive incl. contained, non-mutating) + `fhir/references.py` (`urn:uuid:`→`ResourceType/id`, non-mutating) + 26 tests (PR #48). Full suite green. Unblocks #6, #11. NOTE: deterministic flattener (FHIR-03/04) NOT in this PR — still outstanding for the citation-tagged reasoning context.
+- #5 FHIR subset — `fhir/subset.py` (6 validated R4B builders via `fhir.resources.R4B.*` killing the R5-default gotcha + `reasoning_view` SEC-02 minimization: strips name/address/telecom/contact, drops birthDate→`ageYears`, keeps MRN-only identifiers, recursive incl. contained, non-mutating) + `fhir/references.py` (`urn:uuid:`→`ResourceType/id`, non-mutating) + 26 tests (PR #48). Full suite green. Unblocks #6, #11. The flattener (FHIR-03/04) is its own issue #6 — now in review as PR #52.
+- #21 follow-up (PR #53) — corrected `acb.json` (every ingredient RxCUI re-derived from RxNav; the prior file collided RxCUIs across distinct drugs — 41493×4, 3498, 3489, 354770 — which would mis-key the ACB bridge; nortriptyline deduped to published grade 1; 74 drugs, 0 dup names/RxCUIs) + `SOURCES.md` (bundle med list corrected — no warfarin in the bundle; planted interaction is in the PDF + Beers rule; dropped uncommitted generator-script path). Resolves the Copilot data findings from #47.
 
 ### Ready / unblocked now
 
-- #6, #11 (Mohammad) — unblocked by #5 FHIR subset now merged
-- Flattener (FHIR-03/04, deterministic citation-tagged context) — outstanding; scoped under #5's intent but not delivered in PR #48. Needs an owner/issue before Phase 2 reasoning.
-- #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #28 HL7v2 scaffold (Vivek), #33 observability (Bader)
+- #11 (Mohammad) — unblocked by #5 FHIR subset now merged
+- #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #33 observability (Bader)
 - #20 RxNorm normalization, #22 interaction checking, #26 older-adult (Beers/ACB) lookups, #27 PDF connector demo — all unblocked by #21 seed data
 - #9 provisioning (Hamza) — config guard merged; real keys go in local `.env` (`GOOGLE_GENAI_API_KEY`, `OPENFDA_API_KEY`, `DEV_TOKEN`) to unblock the reasoning runtime (#14, #15)
 
@@ -74,12 +76,9 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-From Copilot bot reviews on the two merged PRs (all on already-merged code — fix-forward via small PR or follow-up issues to the owners):
-- [#21 / Vivek] `seeds/acb.json` has a duplicate drug entry with a conflicting ACB score (Copilot: nortriptyline) — name/RxCUI lookup could return inconsistent burden. De-dupe.
-- [#21 / Vivek] `seeds/SOURCES.md` lists warfarin as present in `sample_bundle.json`, but the bundle has no warfarin / RxCUI 11289 (only aspirin + prasugrel). The warfarin+aspirin planted interaction lives in the Beers rule + `sample_clinical.pdf`, NOT the FHIR bundle — so fix the provenance note (don't point interaction-demo work at a non-existent bundle med).
-- [#21 / Vivek] `seeds/SOURCES.md` references a PDF-generator path that doesn't exist in the repo — provenance not reproducible. Commit the script or drop the path.
-- [#5 / Mohammad] `fhir/references.py` signature is typed `dict[str, Any]` but the function intentionally passes through non-dict (`None`/`str`/`int`); docstrings were corrected to `Any` but the annotation wasn't. Cosmetic (ruff doesn't type-check), tidy when convenient.
-- [#5 / Mohammad] `reasoning_view` docstring example hard-codes `ageYears = 36` (date-dependent; not run as a doctest). Swap for a stable assertion in the docstring.
+Copilot data findings from #21 — RESOLVED in PR #53 (merged). Remaining are cosmetic-only, deferred (not worth a PR; mention to Mohammad if touching the file):
+- [#5 / Mohammad, cosmetic] `fhir/references.py` `resolve_references` is annotated `dict[str, Any]` but intentionally passes non-dict through; the Copilot autofix corrected the docstrings to `Any` pre-merge but not the annotation. No mypy in CI, so harmless.
+- [#5 / Mohammad, cosmetic] `reasoning_view` docstring example hard-codes `ageYears = 36` (date-dependent; not a live doctest). Swap to a stable assertion if editing.
 
 ### Blockers/Concerns
 
