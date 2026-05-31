@@ -75,9 +75,7 @@ def test_audit_written_on_read():
                 actor="test-user",
             )
 
-            count = (
-                await sess.execute(select(func.count()).select_from(AuditEvent))
-            ).scalar_one()
+            count = (await sess.execute(select(func.count()).select_from(AuditEvent))).scalar_one()
             assert count == 1
 
             event = (await sess.execute(select(AuditEvent))).scalar_one()
