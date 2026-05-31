@@ -12,12 +12,18 @@ Stage B scaffold for the polypharmacy decision packet. The repo is set up so the
 ## Quick start
 
 1. Copy `.env.example` to `.env` and fill in the local values.
-2. Install backend dependencies with `make backend-install`.
-3. Install frontend dependencies with `make frontend-install`.
-4. Run `make test` and `make lint`.
-5. Start the backend with `cd backend && uvicorn app.main:app --reload`.
-6. Start the frontend with `cd frontend && npm run dev`.
-7. Start the database layer with `docker compose up`.
+2. Set `GOOGLE_GENAI_API_KEY=PLACEHOLDER`, `OPENFDA_API_KEY=PLACEHOLDER`, and `DEV_TOKEN=PLACEHOLDER` in `.env` before wiring real values.
+3. Verify the config-load test passes before you rely on the AI or openFDA lookups.
+4. Install backend dependencies with `make backend-install`.
+5. Install frontend dependencies with `make frontend-install`.
+6. Run `make test` and `make lint`.
+7. Start the backend with `cd backend && uvicorn app.main:app --reload`.
+8. Start the frontend with `cd frontend && npm run dev`.
+9. Start the database layer with `docker compose up`.
+
+## Environment
+
+The reasoning and drug-data lookups require `GOOGLE_GENAI_API_KEY`, `OPENFDA_API_KEY`, and `DEV_TOKEN`. Keep real values only in local `.env`; `.env.example` contains `PLACEHOLDER` values so nobody checks secrets into the repo.
 
 ## Branching and review
 
