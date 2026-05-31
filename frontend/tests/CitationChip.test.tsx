@@ -36,6 +36,21 @@ const mockResourceData = {
   isLoading: false,
   isError: false,
 };
+const mockResourceWithSpan = {
+  data: {
+    resourceType: "MedicationStatement",
+    id: "med-warfarin",
+    span: { page: 2, start: 143, end: 183, snippet: "Warfarin 5 mg oral Anticoagulant Daily" },
+  },
+  isLoading: false,
+  isError: false,
+};
+
+const pdfCitation: Citation = {
+  kind: "resource",
+  ref: "MedicationStatement/med-warfarin",
+  label: "Warfarin (PDF)",
+};
 
 describe("CitationChip", () => {
   beforeEach(() => {
@@ -161,5 +176,24 @@ describe("CitationChip", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows PDF highlight view when resource has span data", () => {
+    vi.mocked($api.useQuery).mockReturnValue(mockResourceWithSpan as never);
+    render(<CitationChip citation={pdfCitation} patientId="DEMO-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "Warfarin (PDF)" }));
+    expect(screen.getByTestId("pdf-highlight")).toBeInTheDocument();
+    expect(screen.getByText("Warfarin 5 mg oral Anticoagulant Daily")).toBeInTheDocument();
+    expect(screen.getByText(/PDF · Page 2/i)).toBeInTheDocument();
+  });
+
+  it("shows plain snippet when resource has no span", () => {
+    vi.mocked($api.useQuery).mockReturnValue(mockEvidenceData as never);
+    render(<CitationChip citation={evidenceCitation} patientId="pat-001" />);
+    fireEvent.click(screen.getByRole("button", { name: "DDInter aspirin-warfarin" }));
+    expect(screen.queryByTestId("pdf-highlight")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Aspirin and warfarin may increase bleeding risk.")
+    ).toBeInTheDocument();
   });
 });
