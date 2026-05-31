@@ -4,6 +4,7 @@ Each builder takes plain Python input (dicts, strings, numbers, lists)
 and returns a validated fhir.resources R4B model.
 """
 
+import datetime
 from typing import Any
 
 from fhir.resources.R4B.allergyintolerance import AllergyIntolerance
@@ -241,15 +242,92 @@ def _strip_pii(obj: Any) -> Any:
     return obj
 
 
+def _compute_age_years(birth_date: Any) -> int | None:
+    """Compute age in whole years from *birth_date* (ISO date string or
+    ``datetime.date``).  Returns ``None`` when the value cannot be parsed.
+    """
+    if isinstance(birth_date, datetime.date):
+        d = birth_date
+    elif isinstance(birth_date, str):
+        try:
+            d = datetime.date.fromisoformat(birth_date)
+        except (ValueError, TypeError):
+            return None
+    else:
+        return None
+    today = datetime.date.today()
+    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+
+
+def _is_mrn_identifier(ident: Any) -> bool:
+    """Return ``True`` if *ident* is an identifier dict whose type coding
+    includes code ``"MR"`` (medical record number).
+    """
+    if not isinstance(ident, dict):
+        return False
+    id_type = ident.get("type")
+    if not isinstance(id_type, dict):
+        return False
+    coding = id_type.get("coding")
+    if not isinstance(coding, list):
+        return False
+    return any(
+        isinstance(c, dict) and c.get("code") == "MR"
+        for c in coding
+    )
+
+
+def _apply_patient_minimisation(obj: Any) -> Any:
+    """Recursively walk *obj* and apply Patient minimisation to every
+    dict whose ``resourceType`` is ``"Patient"``.
+    """
+    if isinstance(obj, dict):
+        if obj.get("resourceType") == "Patient":
+            result = dict(obj)  # shallow copy so we can mutate
+            age = _compute_age_years(result.pop("birthDate", None))
+            if age is not None:
+                result["ageYears"] = age
+            ids = result.pop("identifier", None)
+            if isinstance(ids, list):
+                mrn_ids = [i for i in ids if _is_mrn_identifier(i)]
+                if mrn_ids:
+                    result["identifier"] = mrn_ids
+            # Recurse into remaining values (e.g. contained, author, etc.)
+            return {k: _apply_patient_minimisation(v) for k, v in result.items()}
+        return {k: _apply_patient_minimisation(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_apply_patient_minimisation(item) for item in obj]
+    return obj
+
+
+def _minimize_patient(resource: dict[str, Any]) -> dict[str, Any]:
+    """Apply Patient-specific minimisation to a resource dict.
+
+    1. Strip ``name``, ``address``, ``telecom``, ``contact``.
+    2. Strip ``birthDate`` and inject ``ageYears`` (computed integer).
+    3. Filter ``identifier`` to only MRN-type identifiers.
+
+    Steps 2-3 are applied to **every** Patient resource in the tree
+    (including those under ``contained``).
+    """
+    result = _strip_pii(resource)
+    return _apply_patient_minimisation(result)
+
+
 def reasoning_view(resource: dict[str, Any]) -> dict[str, Any]:
-    """Return a PII-free projection of a FHIR resource for the reasoning
-    engine.
+    """Return a PII-free, minimised projection of a FHIR resource for the
+    reasoning engine.
 
-    The following Patient-level fields are **always** stripped:
-    ``name``, ``address``, ``telecom``, ``contact``.
+    For **Patient** resources the result:
 
-    Non-Patient resources are returned with the same top-level fields, but any nested
-    Patient fragments (e.g. under ``contained``) also have PII keys stripped.
+    * drops ``name``, ``address``, ``telecom``, ``contact``
+    * drops ``birthDate`` and adds ``ageYears`` (integer, computed from
+      birth date)
+    * filters ``identifier`` to only keep MRN-type identifiers (code ``"MR"``)
+
+    For all other resource types the output is equivalent to
+    :func:`_strip_pii` (only ``name``/``address``/``telecom``/``contact``
+    are removed).
 
     Parameters
     ----------
@@ -259,8 +337,7 @@ def reasoning_view(resource: dict[str, Any]) -> dict[str, Any]:
     Returns
     -------
     dict[str, Any]
-        A **new** dict with PII keys removed.  The original *resource* is
-        not mutated.
+        A **new** dict.  The original *resource* is not mutated.
 
     Example
     -------
@@ -269,14 +346,16 @@ def reasoning_view(resource: dict[str, Any]) -> dict[str, Any]:
     ...     "id": "p1",
     ...     "name": [{"family": "Smith"}],
     ...     "birthDate": "1990-01-15",
-    ...     "identifier": [{"value": "MRN001"}],
+    ...     "identifier": [{"value": "MRN001", "type": {"coding": [{"code": "MR"}]}}],
     ... }
     >>> view = reasoning_view(raw)
     >>> "name" in view
     False
-    >>> view["birthDate"]
-    '1990-01-15'
+    >>> "birthDate" in view
+    False
+    >>> view["ageYears"]
+    36
     >>> view["identifier"]
-    [{'value': 'MRN001'}]
+    [{'value': 'MRN001', 'type': {'coding': [{'code': 'MR'}]}}]
     """
-    return _strip_pii(resource)
+    return _minimize_patient(resource)

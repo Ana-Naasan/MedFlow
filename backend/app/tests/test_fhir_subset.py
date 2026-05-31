@@ -250,7 +250,12 @@ class TestReasoningView:
             "name": [{"family": "Smith", "given": ["John"]}],
             "birthDate": "1990-01-15",
             "gender": "male",
-            "identifier": [{"value": "MRN001"}],
+            "identifier": [
+                {
+                    "value": "MRN001",
+                    "type": {"coding": [{"code": "MR"}]},
+                }
+            ],
         }
         view = reasoning_view(raw)
         assert "name" not in view
@@ -285,7 +290,8 @@ class TestReasoningView:
         view = reasoning_view(raw)
         assert "contact" not in view
 
-    def test_keeps_birth_date(self):
+    def test_birth_date_replaced_by_age_years(self):
+        """birthDate is removed and ageYears is computed from it."""
         raw = {
             "resourceType": "Patient",
             "id": "p1",
@@ -293,17 +299,35 @@ class TestReasoningView:
             "birthDate": "1990-01-15",
         }
         view = reasoning_view(raw)
-        assert view["birthDate"] == "1990-01-15"
+        assert "birthDate" not in view
+        assert isinstance(view.get("ageYears"), int)
+        assert view["ageYears"] >= 35  # 1990 → 2026 is 36
 
-    def test_keeps_identifier(self):
+    def test_mrn_identifiers_kept(self):
+        """Only MRN-type identifiers survive filtering."""
         raw = {
             "resourceType": "Patient",
             "id": "p1",
             "name": [{"family": "Smith"}],
-            "identifier": [{"value": "MRN001"}],
+            "birthDate": "1990-01-15",
+            "identifier": [
+                {
+                    "value": "MRN001",
+                    "type": {"coding": [{"code": "MR"}]},
+                },
+                {
+                    "value": "SSN123",
+                    "type": {"coding": [{"code": "SS"}]},
+                },
+                {
+                    "value": "DL456",
+                    "type": {"coding": [{"code": "DL"}]},
+                },
+            ],
         }
         view = reasoning_view(raw)
-        assert view["identifier"] == [{"value": "MRN001"}]
+        assert len(view["identifier"]) == 1
+        assert view["identifier"][0]["value"] == "MRN001"
 
     def test_non_patient_resource_passes_through_unchanged(self):
         raw = {
@@ -327,7 +351,9 @@ class TestReasoningView:
         assert raw == original
 
     def test_strips_nested_pii_under_contained(self):
-        """PII keys nested anywhere in the tree are stripped."""
+        """PII keys nested anywhere in the tree are stripped.
+        Contained Patient resources also get birthDate → ageYears
+        minimisation."""
         raw = {
             "resourceType": "Observation",
             "id": "o1",
@@ -346,10 +372,11 @@ class TestReasoningView:
         contained = view["contained"][0]
         assert "name" not in contained
         assert "address" not in contained
-        assert contained["birthDate"] == "1980-05-10"
+        assert "birthDate" not in contained
+        assert contained["ageYears"] >= 44  # 1980 → 2026 is 46
 
     def test_reasoning_view_from_built_patient(self):
-        """Integration: build_patient → model_dump → reasoning_view drops PII."""
+        """Integration: build_patient → model_dump → reasoning_view."""
         p = build_patient(**_valid_kwargs("build_patient"))
         raw = p.model_dump()
         view = reasoning_view(raw)
@@ -357,5 +384,34 @@ class TestReasoningView:
         assert "address" not in view
         assert "telecom" not in view
         assert "contact" not in view
-        assert view["birthDate"] == raw["birthDate"]
-        assert view["identifier"] == raw["identifier"]
+        assert "birthDate" not in view
+        assert isinstance(view.get("ageYears"), int)
+        # Only MRN identifier should remain
+        assert view["identifier"][0]["value"] == _valid_kwargs("build_patient")["mrn"]
+
+    def test_missing_birth_date_no_crash(self):
+        """Patient without birthDate gets no ageYears (no crash)."""
+        raw = {
+            "resourceType": "Patient",
+            "id": "p1",
+            "name": [{"family": "Smith"}],
+        }
+        view = reasoning_view(raw)
+        assert "birthDate" not in view
+        assert "ageYears" not in view
+
+    def test_non_mrn_identifiers_removed(self):
+        """Patient with only non-MRN identifiers gets no identifier field."""
+        raw = {
+            "resourceType": "Patient",
+            "id": "p1",
+            "birthDate": "2000-01-01",
+            "identifier": [
+                {
+                    "value": "SSN123",
+                    "type": {"coding": [{"code": "SS"}]},
+                }
+            ],
+        }
+        view = reasoning_view(raw)
+        assert "identifier" not in view
