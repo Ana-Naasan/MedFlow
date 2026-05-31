@@ -250,7 +250,10 @@ class TestTransport:
 
 class TestCache:
     def test_cache_get_expired(self) -> None:
-        _cache["k"] = _CacheEntry(data={"x": 1}, fetched_at=42.0)
+        # monotonic() has an arbitrary epoch, so derive a genuinely-past stamp
+        # rather than a hardcoded constant (which isn't "old" on a fresh CI box).
+        stale = openfda.time.monotonic() - openfda._CACHE_TTL - 1
+        _cache["k"] = _CacheEntry(data={"x": 1}, fetched_at=stale)
         assert _cache_get("k") is None
         assert "k" not in _cache
 
