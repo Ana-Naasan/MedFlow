@@ -1,116 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 
-import { $api } from "../lib/api";
-import type { Citation, Span } from "../lib/types";
-import { PdfHighlight } from "./PdfHighlight";
+import type { Citation } from "../lib/types";
+import { EvidencePanel } from "./EvidencePanel";
 
 interface CitationChipProps {
   citation: Citation;
   patientId: string;
 }
 
-export function CitationChip({ citation, patientId }: CitationChipProps) {
+function ExternalLinkIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false">
+      <path d="M7 1h4v4M11 1L5 7M3 3H1v8h8V9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false">
+      <circle cx="6" cy="3.5" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M1 11c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function CitationChip({ citation }: CitationChipProps) {
   const [open, setOpen] = useState(false);
+  const isKnowledge = citation.kind === "evidence";
 
-  const refParts = citation.ref.split("/");
-  const resourceType = refParts[0] as string;
-  const resourceId = refParts[1] ?? "";
-
-  const resourceQuery = $api.useQuery(
-    "get",
-    "/patients/{patient_id}/resource/{resource_type}/{resource_id}",
-    {
-      params: {
-        path: { patient_id: patientId, resource_type: resourceType, resource_id: resourceId },
-      },
-    },
-    { enabled: open && citation.kind === "resource" }
-  );
-
-  const evidenceQuery = $api.useQuery(
-    "get",
-    "/evidence/{evidence_id}",
-    { params: { path: { evidence_id: citation.ref } } },
-    { enabled: open && citation.kind === "evidence" }
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
-
-  const activeQuery = citation.kind === "resource" ? resourceQuery : evidenceQuery;
-  const responseData = activeQuery.data as Record<string, unknown> | undefined;
-  const snippet = responseData?.snippet as string | undefined;
-  const source = responseData?.source as string | undefined;
-  const responseId = responseData?.id as string | undefined;
-  const span = responseData?.span as Span | undefined;
-
-  const getModalBody = () => {
-    if (activeQuery.isLoading) {
-      return (
-        <div className="citation-skeleton" role="status" aria-label="Loading citation">
-          <div className="skeleton-line" />
-          <div className="skeleton-line skeleton-line-short" />
-        </div>
-      );
-    }
-    if (activeQuery.isError) return <p>Failed to load citation.</p>;
-    if (!responseData) return null;
-    if (span) return <PdfHighlight span={span} source={source} />;
-    if (snippet) return <p className="citation-modal-snippet">{snippet}</p>;
-    return (
-      <p className="citation-modal-snippet">
-        {responseId ? `Resource: ${responseId}` : "Source not found."}
-      </p>
-    );
-  };
+  const chipClass = `chip-interactive ${isKnowledge ? "chip-knowledge" : "chip-patient-fact"}`;
 
   return (
     <>
       <button
         type="button"
-        className="chip-interactive"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
+        className={chipClass}
+        onClick={isKnowledge ? () => setOpen(true) : undefined}
+        {...(isKnowledge ? { "aria-haspopup": "dialog" as const } : {})}
+        data-citation-type={isKnowledge ? "knowledge" : "patient-fact"}
       >
+        {isKnowledge ? <ExternalLinkIcon /> : <PersonIcon />}
         {citation.label ?? citation.ref}
       </button>
-      {open &&
-        createPortal(
-          <>
-            <div
-              className="modal-backdrop"
-              data-testid="modal-backdrop"
-              aria-hidden="true"
-              onClick={() => setOpen(false)}
-            />
-            <dialog
-              open
-              className="citation-modal"
-              aria-modal="true"
-              aria-label={citation.label ?? citation.ref}
-            >
-              <p className="citation-modal-source">
-                {source ?? citation.label ?? citation.ref}
-              </p>
-              {getModalBody()}
-              <div className="citation-modal-footer">
-                <button type="button" className="button secondary" onClick={() => setOpen(false)}>
-                  Close
-                </button>
-              </div>
-            </dialog>
-          </>,
-          document.body
-        )}
+      {open && isKnowledge && (
+        <EvidencePanel
+          evidenceId={citation.ref}
+          label={citation.label}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }
