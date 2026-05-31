@@ -184,8 +184,14 @@ def _strip_brackets(ref: str) -> str:
 # string-matching aid, NOT a clinical ontology, and does not bypass the
 # citation verifier (every surfaced match is gated downstream like any other
 # evidence reference). Extend with clinical judgement (see PRD §12 REASON-05).
+# NOTE on term selection: synonyms are matched as case-insensitive *substrings*
+# (so "bleed" reaches "bleeding"/"bleeds"). Bare ambiguous stems that collide
+# with benign clinical vitals are deliberately excluded — e.g. "blood" is NOT a
+# synonym because it fires on "Systolic Blood Pressure"/"Blood pressure panel"
+# Observations, injecting a spurious "Blood Pressure ↔ hemorrhage" candidate
+# (the bleeding bucket is reached via "bleed"/"bleeding"/"hemorrhage" instead).
 _SYMPTOM_SYNONYMS: dict[str, list[str]] = {
-    "bleeding": ["hemorrhage", "haemorrhage", "blood", "bleed", "bruising", "bruise"],
+    "bleeding": ["hemorrhage", "haemorrhage", "bleed", "bruising", "bruise"],
     "nausea": ["nauseous", "vomiting", "emesis", "sick to stomach"],
     "fatigue": ["tired", "weakness", "lethargy", "exhaustion"],
     "pain": ["ache", "discomfort", "soreness"],
@@ -423,7 +429,9 @@ async def run_reasoning(
     matches = match_symptoms_to_reactions(flattened_text, evidence)
     match_block = _format_symptom_matches(matches)
     if match_block:
-        prompt = f"{prompt}{match_block}\n\n"
+        # Re-assert the JSON-only directive AFTER the appended block so the last
+        # thing the model reads is the output contract, not the candidate links.
+        prompt = f"{prompt}{match_block}\n\nNow, respond with ONLY the JSON object.\n"
 
     client = _get_client()
     aio = client.aio

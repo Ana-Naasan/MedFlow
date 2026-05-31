@@ -93,6 +93,38 @@ class TestMatchSymptomsToReactions:
         flattened = "[Observation/obs-1] patient reports bleeding"
         assert match_symptoms_to_reactions(flattened, []) == []
 
+    def test_blood_pressure_does_not_match_bleeding(
+        self, reaction_evidence: list[EvidenceSnippet]
+    ) -> None:
+        """Regression (#98 review MEDIUM): a benign 'Systolic Blood Pressure'
+        Observation must NOT activate the bleeding bucket and surface a spurious
+        'Blood Pressure ↔ hemorrhage' candidate. The bare 'blood' stem was dropped."""
+        flattened = "[Observation/obs-1] Systolic Blood Pressure: 120 mmHg"
+        matches = match_symptoms_to_reactions(flattened, reaction_evidence)
+        assert matches == []
+
+    def test_matches_across_multiple_snippets(self) -> None:
+        """One symptom matching a term present in two evidence snippets records a
+        distinct match per snippet (each carries its own resolvable evidence id)."""
+        flattened = "[Observation/obs-1] patient reports bleeding"
+        evidence = [
+            EvidenceSnippet(
+                id="ev-a",
+                kind="openfda_adverse_event",
+                ref="ev-a",
+                label="Reactions: hemorrhage observed.",
+            ),
+            EvidenceSnippet(
+                id="ev-b",
+                kind="openfda_label",
+                ref="ev-b",
+                label="Boxed warning: risk of hemorrhage.",
+            ),
+        ]
+        matches = match_symptoms_to_reactions(flattened, evidence)
+        ev_ids = {m.evidence_id for m in matches if m.reaction_term == "hemorrhage"}
+        assert ev_ids == {"ev-a", "ev-b"}
+
     def test_deduplicates_repeated_matches(self) -> None:
         """The same (symptom, term, evidence) triple is recorded only once even if
         the bucket key and a synonym both appear in the symptom text."""
@@ -197,6 +229,12 @@ class TestRunReasoningSymptomWiring:
         sent_prompt = mock_aio_models.generate_content.call_args.kwargs["contents"]
         assert "Symptom–reaction matches" in sent_prompt
         assert "hemorrhage" in sent_prompt
+        # The load-bearing evidence id (what the verifier resolves against) must
+        # reach the prompt so the model can cite it.
+        assert "openfda:warfarin:adverse_events:top_reactions" in sent_prompt
+        # The JSON-only output contract is re-asserted as the final directive,
+        # after the appended candidate-links block.
+        assert sent_prompt.rstrip().endswith("respond with ONLY the JSON object.")
 
     @pytest.mark.asyncio
     async def test_no_block_when_no_match(self, reaction_evidence: list[EvidenceSnippet]) -> None:
