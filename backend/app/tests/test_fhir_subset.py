@@ -28,30 +28,46 @@ def _valid_kwargs(builder_name: str) -> dict:
     """Return a minimal set of valid keyword arguments for the given builder."""
     pool: dict[str, dict] = {
         "build_patient": dict(
-            id="p1", mrn="MRN001", family_name="Smith", given_name="John",
-            gender="male", birth_date="1990-01-15",
+            id="p1",
+            mrn="MRN001",
+            family_name="Smith",
+            given_name="John",
+            gender="male",
+            birth_date="1990-01-15",
         ),
         "build_condition": dict(
-            id="c1", subject_ref="Patient/p1",
-            code_system="http://snomed.info/sct", code="38341003",
+            id="c1",
+            subject_ref="Patient/p1",
+            code_system="http://snomed.info/sct",
+            code="38341003",
             display="Hypertension",
         ),
         "build_observation": dict(
-            id="o1", subject_ref="Patient/p1",
-            loinc_code="8480-6", loinc_display="Systolic BP",
-            value=120, unit="mmHg", unit_code="mm[Hg]",
+            id="o1",
+            subject_ref="Patient/p1",
+            loinc_code="8480-6",
+            loinc_display="Systolic BP",
+            value=120,
+            unit="mmHg",
+            unit_code="mm[Hg]",
         ),
         "build_medication_statement": dict(
-            id="ms1", subject_ref="Patient/p1",
-            rxnorm_code="312961", rxnorm_display="Lisinopril 10 MG",
+            id="ms1",
+            subject_ref="Patient/p1",
+            rxnorm_code="312961",
+            rxnorm_display="Lisinopril 10 MG",
         ),
         "build_allergy_intolerance": dict(
-            id="a1", patient_ref="Patient/p1",
-            code="91936005", display="Allergy to penicillin",
+            id="a1",
+            patient_ref="Patient/p1",
+            code="91936005",
+            display="Allergy to penicillin",
         ),
         "build_procedure": dict(
-            id="pr1", subject_ref="Patient/p1",
-            code="80146002", display="Appendectomy",
+            id="pr1",
+            subject_ref="Patient/p1",
+            code="80146002",
+            display="Appendectomy",
             performed_date_time="2024-06-15T10:30:00Z",
         ),
     }
@@ -139,14 +155,18 @@ class TestBuildFailure:
 
     # ── Wrong types ────────────────────────────────────────────────────
 
-    @pytest.mark.parametrize("builder, kwargs", [
-        ("build_patient",         dict(id=123)),
-        ("build_condition",       dict(subject_ref=42)),
-        ("build_observation",     dict(loinc_code=True)),
-        ("build_medication_statement", dict(rxnorm_code=123)),  # int where str expected
-        ("build_allergy_intolerance",  dict(code=[]) ),
-        ("build_procedure",       dict(status=999)),
-    ], ids=lambda v: str(v)[:40])
+    @pytest.mark.parametrize(
+        "builder, kwargs",
+        [
+            ("build_patient", dict(id=123)),
+            ("build_condition", dict(subject_ref=42)),
+            ("build_observation", dict(loinc_code=True)),
+            ("build_medication_statement", dict(rxnorm_code=123)),  # int where str expected
+            ("build_allergy_intolerance", dict(code=[])),
+            ("build_procedure", dict(status=999)),
+        ],
+        ids=lambda v: str(v)[:40],
+    )
     def test_wrong_types(self, builder, kwargs):
         fn = globals()[builder]
         base = _valid_kwargs(builder)
@@ -156,10 +176,13 @@ class TestBuildFailure:
 
     # ── Bad date formats (caught by round-trip) ────────────────────────
 
-    @pytest.mark.parametrize("builder, field, bad_value", [
-        ("build_patient",         "birth_date",          "not-a-date"),
-        ("build_procedure",       "performed_date_time",  "never"),
-    ])
+    @pytest.mark.parametrize(
+        "builder, field, bad_value",
+        [
+            ("build_patient", "birth_date", "not-a-date"),
+            ("build_procedure", "performed_date_time", "never"),
+        ],
+    )
     def test_bad_date_format(self, builder, field, bad_value):
         fn = globals()[builder]
         base = _valid_kwargs(builder)
@@ -169,22 +192,25 @@ class TestBuildFailure:
 
     # ── Empty / missing required strings ───────────────────────────────
 
-    @pytest.mark.parametrize("builder, field", [
-        ("build_patient",         "id"),
-        ("build_patient",         "mrn"),
-        ("build_patient",         "family_name"),
-        ("build_patient",         "given_name"),
-        ("build_condition",       "id"),
-        ("build_condition",       "subject_ref"),
-        ("build_observation",     "id"),
-        ("build_observation",     "loinc_code"),
-        ("build_medication_statement", "id"),
-        ("build_medication_statement", "rxnorm_code"),
-        ("build_allergy_intolerance",  "id"),
-        ("build_allergy_intolerance",  "patient_ref"),
-        ("build_procedure",       "id"),
-        ("build_procedure",       "code"),
-    ])
+    @pytest.mark.parametrize(
+        "builder, field",
+        [
+            ("build_patient", "id"),
+            ("build_patient", "mrn"),
+            ("build_patient", "family_name"),
+            ("build_patient", "given_name"),
+            ("build_condition", "id"),
+            ("build_condition", "subject_ref"),
+            ("build_observation", "id"),
+            ("build_observation", "loinc_code"),
+            ("build_medication_statement", "id"),
+            ("build_medication_statement", "rxnorm_code"),
+            ("build_allergy_intolerance", "id"),
+            ("build_allergy_intolerance", "patient_ref"),
+            ("build_procedure", "id"),
+            ("build_procedure", "code"),
+        ],
+    )
     def test_empty_required_string(self, builder, field):
         fn = globals()[builder]
         base = _valid_kwargs(builder)
@@ -194,14 +220,17 @@ class TestBuildFailure:
 
     # ── Missing required keyword (no default) ──────────────────────────
 
-    @pytest.mark.parametrize("builder, missing_field", [
-        ("build_patient",         "id"),
-        ("build_condition",       "code_system"),
-        ("build_observation",     "loinc_display"),
-        ("build_medication_statement", "rxnorm_display"),
-        ("build_allergy_intolerance",  "code"),
-        ("build_procedure",       "display"),
-    ])
+    @pytest.mark.parametrize(
+        "builder, missing_field",
+        [
+            ("build_patient", "id"),
+            ("build_condition", "code_system"),
+            ("build_observation", "loinc_display"),
+            ("build_medication_statement", "rxnorm_display"),
+            ("build_allergy_intolerance", "code"),
+            ("build_procedure", "display"),
+        ],
+    )
     def test_missing_required(self, builder, missing_field):
         fn = globals()[builder]
         base = _valid_kwargs(builder)

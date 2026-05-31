@@ -46,8 +46,7 @@ def build_patient(
                 "type": {
                     "coding": [
                         {
-                            "system": ("http://terminology.hl7.org/CodeSystem"
-                                        "/v2-0203"),
+                            "system": ("http://terminology.hl7.org/CodeSystem" "/v2-0203"),
                             "code": "MR",
                             "display": "Medical record number",
                         }
@@ -119,9 +118,7 @@ def build_observation(
         id=id,
         status=status,
         code={
-            "coding": [
-                {"system": "http://loinc.org", "code": loinc_code, "display": loinc_display}
-            ]
+            "coding": [{"system": "http://loinc.org", "code": loinc_code, "display": loinc_display}]
         },
         subject={"reference": subject_ref},
         valueQuantity=(
@@ -186,8 +183,7 @@ def build_allergy_intolerance(
             "coding": [
                 {
                     "system": (
-                        "http://terminology.hl7.org/CodeSystem"
-                        "/allergyintolerance-clinical"
+                        "http://terminology.hl7.org/CodeSystem" "/allergyintolerance-clinical"
                     ),
                     "code": clinical_status,
                 }
@@ -226,22 +222,20 @@ def build_procedure(
 # ── Reasoning view (PII-stripped projection) ──────────────────────────────
 
 
-_PII_KEYS = frozenset({
-    "name",
-    "address",
-    "telecom",
-    "contact",
-})
+_PII_KEYS = frozenset(
+    {
+        "name",
+        "address",
+        "telecom",
+        "contact",
+    }
+)
 
 
 def _strip_pii(obj: Any) -> Any:
     """Recursively drop PII keys from a FHIR resource dict."""
     if isinstance(obj, dict):
-        return {
-            k: _strip_pii(v)
-            for k, v in obj.items()
-            if k not in _PII_KEYS
-        }
+        return {k: _strip_pii(v) for k, v in obj.items() if k not in _PII_KEYS}
     if isinstance(obj, list):
         return [_strip_pii(item) for item in obj]
     return obj
