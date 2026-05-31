@@ -1,11 +1,10 @@
 """Bridge drug names to RxNorm codes via the free NIH RxNav REST API.
 
-Every medication name fed to the reasoning core is first resolved through
-this module.  When a drug cannot be matched the caller is notified via
-``DrugResolution.resolved == False`` (flagged, never silently dropped).
-
-If the overall input is too thin (fewer than half of names resolve) a
-``low_confidence_note`` is set on the report.
+Intended to be called by the reasoning pipeline before DDInter lookups
+(#22).  When a drug cannot be matched the result has ``resolved=False``
+(flagged, never silently dropped).  If the overall input is too thin
+(fewer than half of names resolve) the report carries a
+``low_confidence_note``.
 """
 
 from __future__ import annotations
@@ -76,11 +75,22 @@ _client_instance: httpx.Client | None = None
 
 
 def _get_client() -> httpx.Client:
-    """Return a shared module-level HTTP client (reused across calls)."""
+    """Return a shared module-level HTTP client (reused across calls).
+
+    The client is closed via :func:`close_client` when the caller is done.
+    """
     global _client_instance
     if _client_instance is None:
         _client_instance = httpx.Client(base_url=BASE_URL, timeout=10.0)
     return _client_instance
+
+
+def close_client() -> None:
+    """Close the shared HTTP client, if one exists."""
+    global _client_instance
+    if _client_instance is not None:
+        _client_instance.close()
+        _client_instance = None
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────
