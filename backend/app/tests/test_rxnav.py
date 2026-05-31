@@ -13,7 +13,6 @@ import pytest
 from backend.app.knowledge.rxnav import (
     DrugResolution,
     DrugResolutionReport,
-    _NETWORK_ERROR,
     close_client,
     resolve_drug,
     resolve_drugs,
@@ -37,9 +36,7 @@ _METFORMIN_INGREDIENT = {
         "conceptGroup": [
             {
                 "tty": "IN",
-                "conceptProperties": [
-                    {"rxcui": "6809", "name": "metformin", "tty": "IN"}
-                ],
+                "conceptProperties": [{"rxcui": "6809", "name": "metformin", "tty": "IN"}],
             }
         ],
     }
@@ -61,9 +58,7 @@ _LISINOPRIL_INGREDIENT = {
         "conceptGroup": [
             {
                 "tty": "IN",
-                "conceptProperties": [
-                    {"rxcui": "197884", "name": "lisinopril", "tty": "IN"}
-                ],
+                "conceptProperties": [{"rxcui": "197884", "name": "lisinopril", "tty": "IN"}],
             }
         ],
     }
@@ -144,7 +139,19 @@ class TestResolveDrug:
         responses = [
             _mock_json_response({"idGroup": {}}),
             _mock_json_response(
-                {"approximateGroup": {"candidate": [{"rxcui": "6809", "name": "metformin", "score": "8.3", "rank": "1", "source": "RXNORM"}]}}
+                {
+                    "approximateGroup": {
+                        "candidate": [
+                            {
+                                "rxcui": "6809",
+                                "name": "metformin",
+                                "score": "8.3",
+                                "rank": "1",
+                                "source": "RXNORM",
+                            }
+                        ]
+                    }
+                }
             ),
             _mock_json_response(_METFORMIN_PROPS),
             _mock_json_response(_METFORMIN_INGREDIENT),
@@ -274,7 +281,9 @@ class TestResolveDrug:
 
         responses = [
             mock_500,
-            _mock_json_response({"approximateGroup": {"candidate": [{"rxcui": "6809", "name": "metformin"}]}}),
+            _mock_json_response(
+                {"approximateGroup": {"candidate": [{"rxcui": "6809", "name": "metformin"}]}}
+            ),
             _mock_json_response(_METFORMIN_PROPS),
             _mock_json_response(_METFORMIN_INGREDIENT),
         ]
@@ -292,7 +301,14 @@ class TestResolveDrug:
         responses = [
             _mock_json_response({"idGroup": {"rxnormId": ["6809"]}}),
             _mock_json_response(_METFORMIN_PROPS),
-            _mock_json_response({"relatedGroup": {"rxcui": None, "conceptGroup": [{"tty": "BN", "conceptProperties": [{"rxcui": "xxx"}]}]}}),
+            _mock_json_response(
+                {
+                    "relatedGroup": {
+                        "rxcui": None,
+                        "conceptGroup": [{"tty": "BN", "conceptProperties": [{"rxcui": "xxx"}]}],
+                    }
+                }
+            ),
         ]
         mock_get = MagicMock(side_effect=responses)
         mock_client = MagicMock()
@@ -308,7 +324,15 @@ class TestResolveDrug:
     def test_display_name_falls_back_to_input(self) -> None:
         responses = [
             _mock_json_response({"idGroup": {"rxnormId": ["6809"]}}),
-            _mock_json_response({"propConceptGroup": {"propConcept": [{"propCategory": "CODES", "propName": "RxCUI", "propValue": "6809"}]}}),
+            _mock_json_response(
+                {
+                    "propConceptGroup": {
+                        "propConcept": [
+                            {"propCategory": "CODES", "propName": "RxCUI", "propValue": "6809"}
+                        ]
+                    }
+                }
+            ),
             _mock_json_response(_METFORMIN_INGREDIENT),
         ]
         mock_get = MagicMock(side_effect=responses)
@@ -460,7 +484,9 @@ class TestNetworkErrors:
             side_effect=[
                 httpx.ConnectError("conn refused"),  # metformin _lookup_name
                 httpx.ConnectError("conn refused"),  # metformin _approximate_match
-                _mock_json_response({"idGroup": {"rxnormId": ["197884"]}}),  # lisinopril _lookup_name
+                _mock_json_response(
+                    {"idGroup": {"rxnormId": ["197884"]}}
+                ),  # lisinopril _lookup_name
                 _mock_json_response(_LISINOPRIL_PROPS),  # lisinopril _fetch_properties
                 _mock_json_response(_LISINOPRIL_INGREDIENT),  # lisinopril _fetch_ingredient
             ]

@@ -209,7 +209,9 @@ def resolve_drug(name: str) -> DrugResolution:
         quality = "approximate"
 
     if rxcui is None:
-        return DrugResolution(input_name=name, resolved=False, match_quality="failed", network_error=net_err)
+        return DrugResolution(
+            input_name=name, resolved=False, match_quality="failed", network_error=net_err
+        )
 
     props = _fetch_properties(rxcui)
     if props is _NETWORK_ERROR:
@@ -217,7 +219,8 @@ def resolve_drug(name: str) -> DrugResolution:
         props = []
 
     atc_codes = [
-        v for v in (p.get("propValue", "") for p in props if p.get("propName") == "ATC")
+        v
+        for v in (p.get("propValue", "") for p in props if p.get("propName") == "ATC")
         if v.strip()
     ]
 
