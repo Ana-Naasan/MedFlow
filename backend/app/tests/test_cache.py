@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from backend.app.cache import repo
 from backend.app.cache.models import AuditEvent, Base, CachedResource, EvidenceCard
@@ -15,6 +16,23 @@ _DB_URL = "sqlite+aiosqlite:///:memory:"
 
 async def _make_session():
     engine = create_async_engine(_DB_URL)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    return engine, async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def _make_shared_session():
+    """Engine where all sessions share one SQLite connection (StaticPool).
+
+    Required for tests that use asyncio.gather with separate per-coroutine
+    sessions: StaticPool ensures flushed (uncommitted) writes in one session
+    are visible to every other session on the same connection.
+    """
+    engine = create_async_engine(
+        _DB_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     return engine, async_sessionmaker(engine, expire_on_commit=False)
@@ -470,3 +488,127 @@ def test_advisory_lock_unbound_session_grants():
         bind = None
 
     assert asyncio.run(repo._try_advisory_xact_lock(_Unbound(), 1)) is True
+
+
+# ---------------------------------------------------------------------------
+# HIT/REFRESH lifecycle (CACHE-02/03)
+# ---------------------------------------------------------------------------
+
+
+def test_hit_refresh_lifecycle():
+    """Expired entry → REFRESH on first read; fresh entry → HIT on next read."""
+
+    async def run():
+        engine, factory = await _make_session()
+        async with factory() as sess:
+            # Seed a row that is already past its TTL.
+            await _seed(sess, expires_at=datetime.now(UTC) - timedelta(seconds=1))
+
+            async def fetcher():
+                return {"v": "fresh"}
+
+            # First read: data is stale → winner grabs lock → re-fetches → REFRESH.
+            row, status = await repo.get_or_refresh(
+                sess,
+                patient_id="p1",
+                resource_type="Condition",
+                resource_id="c1",
+                actor="u",
+                fetcher=fetcher,
+                source_provider="mock",
+                ttl_seconds=3600,
+            )
+            assert status is CacheStatus.REFRESH
+            assert row is not None
+            assert row.body == {"v": "fresh"}
+            assert row.expires_at > datetime.now(UTC)
+
+            # Second read within same session: row was just refreshed → HIT, no fetch.
+            called = False
+
+            async def fetcher_should_not_be_called():
+                nonlocal called
+                called = True
+                return {"v": "should-not-appear"}
+
+            row2, status2 = await repo.get_or_refresh(
+                sess,
+                patient_id="p1",
+                resource_type="Condition",
+                resource_id="c1",
+                actor="u",
+                fetcher=fetcher_should_not_be_called,
+                source_provider="mock",
+                ttl_seconds=3600,
+            )
+            assert status2 is CacheStatus.HIT
+            assert called is False
+            assert row2.body == {"v": "fresh"}
+
+        await engine.dispose()
+
+    asyncio.run(run())
+
+
+# ---------------------------------------------------------------------------
+# Single refresh under concurrent reads (CACHE-03 advisory lock)
+# ---------------------------------------------------------------------------
+
+
+def test_single_refresh_under_concurrent_reads(monkeypatch):
+    """Only the advisory-lock winner calls the fetcher; all others serve stale cache.
+
+    Five coroutines race via asyncio.gather.  The monkeypatched lock lets exactly
+    one win; the others go to the else-branch and serve the stale cached row.
+    StaticPool (single shared SQLite connection) lets each coroutine use its own
+    session object while still seeing each other's in-transaction writes, avoiding
+    both "Session is already flushing" conflicts and cross-session visibility gaps.
+    """
+    grant_count = 0
+    fetch_count = 0
+
+    async def one_winner(_sess, _key):
+        nonlocal grant_count
+        grant_count += 1
+        return grant_count == 1  # first caller wins; the rest lose
+
+    monkeypatch.setattr(repo, "_try_advisory_xact_lock", one_winner)
+
+    async def run():
+        nonlocal fetch_count
+        # _make_shared_session gives every coroutine its own session object but
+        # a single underlying connection so flushed writes are immediately visible.
+        engine, factory = await _make_shared_session()
+
+        async with factory() as seed_sess:
+            async with seed_sess.begin():
+                await _seed(seed_sess, expires_at=datetime.now(UTC) - timedelta(seconds=1))
+
+        async def fetcher():
+            nonlocal fetch_count
+            fetch_count += 1
+            return {"v": "fresh"}
+
+        async def one_read():
+            async with factory() as sess:
+                return await repo.get_or_refresh(
+                    sess,
+                    patient_id="p1",
+                    resource_type="Condition",
+                    resource_id="c1",
+                    actor="u",
+                    fetcher=fetcher,
+                    source_provider="mock",
+                    ttl_seconds=3600,
+                )
+
+        results = await asyncio.gather(*[one_read() for _ in range(5)])
+
+        statuses = [s for _, s in results]
+        assert fetch_count == 1, "fetcher must be invoked exactly once"
+        assert statuses.count(CacheStatus.REFRESH) == 1, "exactly one REFRESH"
+        assert statuses.count(CacheStatus.HIT) == 4, "the other four serve stale cache"
+
+        await engine.dispose()
+
+    asyncio.run(run())

@@ -1,20 +1,31 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from collections.abc import AsyncGenerator
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.auth import require_dev_token
+from backend.app.cache import repo
 from backend.app.cache.store import (
     build_packet,
     get_evidence_card,
     get_patient_resource,
     list_connectors,
     list_patient_ids,
-    refresh_patient,
 )
+from backend.app.config import CACHE_TTL_SECONDS
 
 router = APIRouter(prefix="/patients", tags=["packet"], dependencies=[Depends(require_dev_token)])
 connectors_router = APIRouter(tags=["connectors"], dependencies=[Depends(require_dev_token)])
 evidence_router = APIRouter(tags=["evidence"], dependencies=[Depends(require_dev_token)])
+
+
+async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    factory = request.app.state.session_factory
+    async with factory() as session:
+        async with session.begin():
+            yield session
 
 
 @router.get("")
@@ -23,9 +34,28 @@ async def get_patients() -> list[dict[str, str]]:
 
 
 @router.get("/{patient_id}/packet")
-async def get_packet(patient_id: str, response: Response) -> dict[str, object]:
-    response.headers["X-Cache"] = "HIT"
-    return build_packet(patient_id).model_dump()
+async def get_packet(
+    patient_id: str,
+    response: Response,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> dict[str, object]:
+    async def fetcher():
+        return build_packet(patient_id).model_dump()
+
+    row, cache_status = await repo.get_or_refresh(
+        db,
+        patient_id=patient_id,
+        resource_type="DecisionPacket",
+        resource_id=patient_id,
+        actor="api",
+        fetcher=fetcher,
+        source_provider="static",
+        ttl_seconds=CACHE_TTL_SECONDS,
+    )
+    response.headers["X-Cache"] = cache_status.value
+
+    body = row.body if row is not None else (await fetcher())
+    return {**body, "cache_status": cache_status.value}
 
 
 @router.get("/{patient_id}/resource/{resource_type}/{resource_id}")
@@ -41,9 +71,23 @@ async def get_patient_citation(
 
 
 @router.post("/{patient_id}/refresh")
-async def refresh(patient_id: str, response: Response) -> dict[str, object]:
+async def refresh(
+    patient_id: str,
+    response: Response,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> dict[str, object]:
+    body = build_packet(patient_id).model_dump()
+    await repo.upsert_resource(
+        db,
+        patient_id=patient_id,
+        resource_type="DecisionPacket",
+        resource_id=patient_id,
+        body=body,
+        source_provider="static",
+        ttl_seconds=CACHE_TTL_SECONDS,
+    )
     response.headers["X-Cache"] = "REFRESH"
-    return refresh_patient(patient_id)
+    return {"patient_id": patient_id, "status": "refreshed"}
 
 
 @connectors_router.get("/connectors")
