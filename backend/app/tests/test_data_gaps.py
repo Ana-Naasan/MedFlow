@@ -16,6 +16,7 @@ from backend.app.fhir.data_gaps import (
     compute_data_gaps,
     coverage_state,
     downgrade_for_gaps,
+    gap_fhir_types,
 )
 
 # ── Shared resource fixtures ──────────────────────────────────────────────────
@@ -318,3 +319,42 @@ def test_coverage_to_fhir_mapping_is_complete() -> None:
     assert "allergies" in COVERAGE_TO_FHIR
     assert "observations" in COVERAGE_TO_FHIR
     assert "procedures" in COVERAGE_TO_FHIR
+
+
+# ── gap_fhir_types (production routing helper, #87) ───────────────────────────
+
+
+def test_gap_fhir_types_returns_not_documented_safety_types() -> None:
+    """Requested-but-absent categories map to their FHIR type via COVERAGE_TO_FHIR."""
+    coverage = {
+        "medications": {"requested": True, "returned": True},
+        "allergies": {"requested": True, "returned": False},
+        "observations": {"requested": True, "returned": False},
+    }
+    # Only a medication is present; allergies + labs are absent → both are gaps.
+    result = gap_fhir_types([_MED], coverage)
+    assert result == {"AllergyIntolerance", "Observation"}
+
+
+def test_gap_fhir_types_excludes_present_categories() -> None:
+    """A category with returned data is not a gap."""
+    coverage = {"medications": {"requested": True, "returned": True}}
+    assert gap_fhir_types([_MED], coverage) == set()
+
+
+def test_gap_fhir_types_skips_unrequested_category() -> None:
+    """A category the source doesn't cover is never a gap (out of scope)."""
+    coverage = {"allergies": {"requested": False, "returned": False}}
+    assert gap_fhir_types([], coverage) == set()
+
+
+def test_gap_fhir_types_skips_unknown_category() -> None:
+    """A coverage key with no COVERAGE_TO_FHIR mapping is ignored, not crashed on."""
+    coverage = {"mystery_category": {"requested": True, "returned": False}}
+    assert gap_fhir_types([], coverage) == set()
+
+
+def test_gap_fhir_types_nka_allergy_is_not_a_gap() -> None:
+    """An NKA allergy entry is 'stated_none', not 'not_documented' → not a gap."""
+    coverage = {"allergies": {"requested": True, "returned": True}}
+    assert gap_fhir_types([_NKA], coverage) == set()

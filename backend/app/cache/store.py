@@ -3,7 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 
 from backend.app.dtos import CategoryCompleteness, Citation, DecisionPacket, Hypothesis
-from backend.app.fhir.data_gaps import apply_gap_downgrades
+from backend.app.fhir.data_gaps import (
+    apply_gap_downgrades,
+    compute_data_gaps,
+    gap_fhir_types,
+)
 
 # ── Static patient data ───────────────────────────────────────────────────────
 #
@@ -250,9 +254,18 @@ def _build_demo_001_packet() -> DecisionPacket:
     ]
     # Labs (Observation) and Allergies (AllergyIntolerance) are safety-critical
     # gaps for this patient — drop med-citing hypotheses one rung on the ladder.
-    hypotheses = apply_gap_downgrades(
-        hypotheses, gap_fhir_types={"AllergyIntolerance", "Observation"}
-    )
+    # Derive the gap set from the actual DEMO-001 record + declared source
+    # coverage (issue #30/#87) instead of a hardcoded literal, so the gap signal
+    # is data-driven and a COVERAGE_TO_FHIR regression would be caught.
+    demo_coverage: dict[str, dict[str, bool]] = {
+        "medications": {"requested": True, "returned": True},
+        "conditions": {"requested": True, "returned": True},
+        "allergies": {"requested": True, "returned": False},
+        "observations": {"requested": True, "returned": False},
+        "procedures": {"requested": True, "returned": False},
+    }
+    demo_resources = [dict(r) for r in STATIC_PATIENTS["DEMO-001"]["resources"].values()]
+    hypotheses = apply_gap_downgrades(hypotheses, gap_fhir_types(demo_resources, demo_coverage))
     return DecisionPacket(
         patient_id="DEMO-001",
         summary_markdown=(
@@ -266,9 +279,10 @@ def _build_demo_001_packet() -> DecisionPacket:
         ),
         hypotheses=hypotheses,
         data_gaps=[
+            # Narrative-only signal the structured coverage map can't express,
+            # then the data-derived gaps (single producer — no duplicate wording).
             "INR result noted in narrative but no structured lab source connected",
-            "Allergy history not documented",
-            "Surgical/procedure history not available",
+            *compute_data_gaps(demo_resources, demo_coverage),
         ],
         completeness=[
             CategoryCompleteness(category="Patient", documented=True),
