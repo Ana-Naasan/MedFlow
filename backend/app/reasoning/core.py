@@ -114,7 +114,7 @@ def parse_gemini_response(response_text: str) -> list[Hypothesis]:
                         ref=c.get("ref", ""),
                         label=c.get("label"),
                     )
-                    for c in raw.get("citations", [])
+                    for c in (raw.get("citations") or [])
                     if isinstance(c, dict)
                 ],
             )
@@ -198,7 +198,7 @@ def verify_citations(
                 if c.ref not in evidence_ids:
                     valid = False
                     break
-        if valid:
+        if valid and known_citations:
             # Keep only known citations in the output hypothesis
             h.citations = known_citations
             verified.append(h)

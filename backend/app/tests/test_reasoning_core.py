@@ -248,6 +248,44 @@ class TestParseGeminiResponse:
         assert len(hypotheses[0].citations) == 1
         assert hypotheses[0].citations[0].ref == "Test/t1"
 
+    def test_citations_null_does_not_crash(self) -> None:
+        """citations=null in JSON coalesces to [] (bug #1 fix)."""
+        response = json.dumps(
+            {
+                "hypotheses": [
+                    {
+                        "title": "Null citations",
+                        "why": "reason",
+                        "severity": "moderate",
+                        "confidence": "low",
+                        "citations": None,
+                    }
+                ]
+            }
+        )
+        hypotheses = parse_gemini_response(response)
+        assert len(hypotheses) == 1
+        assert hypotheses[0].citations == []
+
+    def test_citations_string_does_not_crash(self) -> None:
+        """citations being a string instead of a list yields empty citations."""
+        response = json.dumps(
+            {
+                "hypotheses": [
+                    {
+                        "title": "String citations",
+                        "why": "reason",
+                        "severity": "minor",
+                        "confidence": "low",
+                        "citations": "malicious_string",
+                    }
+                ]
+            }
+        )
+        hypotheses = parse_gemini_response(response)
+        assert len(hypotheses) == 1
+        assert hypotheses[0].citations == []
+
     def test_default_severity_and_confidence(self) -> None:
         response = json.dumps(
             {
@@ -328,8 +366,7 @@ class TestVerifyCitations:
             citations=[Citation(kind="hallucinated_kind", ref="x", label="y")],
         )
         result = verify_citations([h], sample_flattened_text, set())
-        assert len(result) == 1
-        assert result[0].citations == []
+        assert len(result) == 0
 
     def test_empty_hypotheses(self, sample_flattened_text: str) -> None:
         result = verify_citations([], sample_flattened_text, set())
@@ -373,8 +410,35 @@ class TestVerifyCitations:
         result = verify_citations([h], sample_flattened_text, set())
         assert len(result) == 1
 
+    def test_zero_citation_hypothesis_dropped(
+        self, sample_flattened_text: str
+    ) -> None:
+        """Hypothesis with zero known citations is dropped (bug #2 fix)."""
+        h = Hypothesis(
+            id="hyp-1",
+            title="No citations",
+            why="reason",
+            severity="moderate",
+            confidence="low",
+            citations=[],
+        )
+        result = verify_citations([h], sample_flattened_text, set())
+        assert len(result) == 0
 
-# ── _get_client ────────────────────────────────────────────────────────────
+    def test_all_unknown_kinds_dropped(
+        self, sample_flattened_text: str
+    ) -> None:
+        """Hypothesis with only unknown citation kinds is dropped."""
+        h = Hypothesis(
+            id="hyp-1",
+            title="Unknown kinds only",
+            why="reason",
+            severity="moderate",
+            confidence="low",
+            citations=[Citation(kind="alien", ref="x", label="y")],
+        )
+        result = verify_citations([h], sample_flattened_text, set())
+        assert len(result) == 0
 
 
 class TestGetClient:
