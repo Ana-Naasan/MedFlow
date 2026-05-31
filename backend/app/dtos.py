@@ -1,4 +1,16 @@
+from dataclasses import dataclass
+
 from pydantic import BaseModel, Field
+
+
+@dataclass
+class EvidenceSnippet:
+    """Single evidence item with a stable, deterministic ID."""
+
+    id: str
+    kind: str
+    ref: str
+    label: str
 
 
 class Citation(BaseModel):
