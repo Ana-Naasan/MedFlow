@@ -92,6 +92,30 @@ def compute_data_gaps(
     return sorted(gaps)
 
 
+def gap_fhir_types(
+    resources: list[dict],
+    coverage: dict[str, dict[str, bool]],
+) -> set[str]:
+    """Return the FHIR types a source covers but returned nothing for.
+
+    Routes real connector coverage through :func:`coverage_state` and the
+    ``COVERAGE_TO_FHIR`` map, so a production downgrade set is derived from the
+    actual record rather than a hardcoded literal — and a ``COVERAGE_TO_FHIR``
+    mapping regression surfaces here. Pass the result to
+    :func:`apply_gap_downgrades`.
+    """
+    out: set[str] = set()
+    for cat, flags in coverage.items():
+        if not flags.get("requested"):
+            continue
+        fhir_type = COVERAGE_TO_FHIR.get(cat)
+        if fhir_type is None:
+            continue
+        if coverage_state(fhir_type, resources) == "not_documented":
+            out.add(fhir_type)
+    return out
+
+
 def downgrade_for_gaps(
     hypothesis: Hypothesis,
     gap_fhir_types: set[str],

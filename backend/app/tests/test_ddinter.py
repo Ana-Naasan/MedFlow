@@ -87,12 +87,9 @@ def test_approximate_rxnav_match_flags_unsure() -> None:
 
 
 def test_no_known_interaction_returns_empty() -> None:
-    # Two real drugs that don't appear together in DDInter:
-    hits = find_interactions([_r("Warfarin"), _r("Caffeine")])
-    # Sanity: if caffeine+warfarin IS in DDInter, swap for a guaranteed non-pair.
-    if hits:
-        hits = find_interactions([_r("Warfarin"), _r("ZzzzNonexistentDrug")])
-    assert hits == []
+    # Warfarin and Caffeine both appear in the vendored CSV but NOT as a pair,
+    # so this exercises the real "two known drugs, no interaction" path.
+    assert find_interactions([_r("Warfarin"), _r("Caffeine")]) == []
 
 
 def test_unresolved_drugs_skipped() -> None:
@@ -148,13 +145,56 @@ def test_rxnav_name_match_when_input_differs() -> None:
     assert "input_name" in methods
 
 
-def test_synonym_acetaminophen_to_paracetamol() -> None:
-    """A non-demo synonym entry also bridges: acetaminophen → Paracetamol."""
+def test_match_method_stays_aligned_when_input_order_reverses() -> None:
+    """Regression: match_method_a must describe drug_a even when the patient's
+    input order is the reverse of the CSV row order.
+
+    CSV row is 'Amitriptyline, Famotidine'. We pass Famotidine first (input_name
+    match) and Elavil→Amitriptyline second (rxnav_name match). drug_a comes back
+    as 'Amitriptyline' (CSV order), so match_method_a MUST be 'rxnav_name'
+    (Amitriptyline's method), not 'input_name' (Famotidine's).
+    """
+    hits = find_interactions(
+        [
+            _r("Famotidine"),
+            _r("Elavil", name="Amitriptyline"),
+        ]
+    )
+    assert len(hits) == 1
+    hit = hits[0]
+    methods = {
+        hit.drug_a: hit.match_method_a,
+        hit.drug_b: hit.match_method_b,
+    }
+    assert methods["Amitriptyline"] == "rxnav_name"
+    assert methods["Famotidine"] == "input_name"
+
+
+def test_synonym_acetaminophen_to_paracetamol(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The acetaminophen → Paracetamol synonym bridge actually resolves a hit.
+
+    Paracetamol isn't paired with anything in the vendored CSV, so we inject a
+    Paracetamol+Warfarin row to prove the bridge non-vacuously: RxNorm
+    'acetaminophen' must reach the DDInter 'Paracetamol' entry and the hit must
+    be flagged unsure (synonym path).
+    """
+    fake_rows = [
+        {
+            "drug_a": "Paracetamol",
+            "drug_b": "Warfarin",
+            "level": "Moderate",
+            "ddinter_id_a": "DDInterP",
+            "ddinter_id_b": "DDInter1951",
+        }
+    ]
+    monkeypatch.setattr(ddinter, "load_ddinter", lambda: fake_rows)
+    clear_cache()
     hits = find_interactions([_r("acetaminophen"), _r("Warfarin")])
-    # We don't assert >0 here — only that IF it hits, it's flagged unsure.
-    # (The Paracetamol+Warfarin pair may or may not be in DDInter.)
-    for h in hits:
-        assert h.unsure is True
+    assert len(hits) == 1, "acetaminophen→Paracetamol synonym bridge must resolve"
+    hit = hits[0]
+    assert "Paracetamol" in {hit.drug_a, hit.drug_b}
+    assert hit.unsure is True
+    assert "synonym" in {hit.match_method_a, hit.match_method_b}
 
 
 def test_synonym_loop_skips_empty_source() -> None:
@@ -255,6 +295,32 @@ def test_build_index_skips_empty_and_self_pairs(monkeypatch: pytest.MonkeyPatch)
     assert hits[0].level == "Minor"
     # And a self-pair shouldn't even land in the index:
     assert find_interactions([_r("Warfarin"), _r("Warfarin")]) == []
+
+
+def test_build_index_skips_invalid_level(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A row whose level isn't one of Minor/Moderate/Major is malformed and
+    must not enter the index — keeping the stored ``Severity`` typing honest."""
+    fake_rows = [
+        {
+            "drug_a": "DrugX",
+            "drug_b": "DrugY",
+            "level": "Catastrophic",  # not a valid DDInter severity
+            "ddinter_id_a": "I1",
+            "ddinter_id_b": "I2",
+        },
+        {
+            "drug_a": "DrugX",
+            "drug_b": "DrugZ",
+            "level": "Major",
+            "ddinter_id_a": "I1",
+            "ddinter_id_b": "I3",
+        },
+    ]
+    monkeypatch.setattr(ddinter, "load_ddinter", lambda: fake_rows)
+    clear_cache()
+    assert find_interactions([_r("DrugX"), _r("DrugY")]) == []  # invalid-level row dropped
+    valid = find_interactions([_r("DrugX"), _r("DrugZ")])
+    assert len(valid) == 1 and valid[0].level == "Major"
 
 
 # ── DDInterInteraction shape ──────────────────────────────────────────────────
