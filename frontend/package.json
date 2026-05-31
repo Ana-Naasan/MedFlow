@@ -1,34 +1,34 @@
 {
-  "name": "umraa-frontend",
-  "private": true,
-  "version": "0.1.0",
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "gen:api": "openapi-typescript ./openapi.json -o ./lib/api/generated.ts"
-  },
-  "dependencies": {
-    "@tanstack/react-query": "5.80.0",
-    "next": "14.2.30",
-    "openapi-fetch": "0.17.0",
-    "openapi-react-query": "0.5.4",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "devDependencies": {
-    "@types/node": "22.10.7",
-    "@types/react": "18.3.17",
-    "@types/react-dom": "18.3.5",
-    "eslint": "8.57.1",
-    "eslint-config-next": "14.2.30",
-    "openapi-typescript": "7.13.0",
-    "prettier": "3.3.3",
-    "typescript": "5.7.3",
-    "vitest": "2.1.8"
-  }
+    "name": "umraa-frontend",
+    "private": true,
+    "version": "0.1.0",
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "gen:api": "openapi-typescript ./openapi.json -o ./lib/api/generated.ts"
+    },
+    "dependencies": {
+        "@tanstack/react-query": "5.80.0",
+        "next": "14.2.30",
+        "openapi-fetch": "0.17.0",
+        "openapi-react-query": "0.5.4",
+        "react": "18.3.1",
+        "react-dom": "18.3.1"
+    },
+    "devDependencies": {
+        "@types/node": "22.10.7",
+        "@types/react": "18.3.17",
+        "@types/react-dom": "18.3.5",
+        "eslint": "8.57.1",
+        "eslint-config-next": "14.2.30",
+        "openapi-typescript": "7.13.0",
+        "prettier": "3.3.3",
+        "typescript": "5.7.3",
+        "vitest": "2.1.8"
+    }
 }
