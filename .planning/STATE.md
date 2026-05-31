@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — cleared the ENTIRE PR queue (6 PRs, full flow each). Merged #47 (#21 seeds), #48 (#5 FHIR subset), #53 (#21 fix-forward), #52 (#6 flattener), #50 (#28 HL7v2), and **#51 (#17 packet API)** — pushed the black fix to Hamza's branch with his OK (commit 7106c63), reviewed, approved, merged. PR queue is now EMPTY. (Note: I briefly mis-diagnosed #51 as having a MockFHIR import blocker — that was wrong; packet.py imports from cache.store which exists, CI was green, corrected on the PR.)
+Last activity: 2026-05-31 — ran the gsd-add-tests skill: drove the correctness-critical core to **100% line coverage** and raised the CI gate to `--cov-fail-under=100` on `fhir/providers/cache/knowledge/reasoning` (PR #57, merged; CI green at 100%). Added `test_coverage_branches.py` (27 branch tests), deleted dead `fhir/flattener.py`. Earlier: cleared the 6-PR queue (#47/#48/#53/#52/#50/#51). **PR #54 (#9 docker wiring, Hamza) still OPEN** — reviewed (CI green, no secrets), will merge next.
 
-Progress (Phase 1 / M0): [█████████░] ~90%
+Progress (Phase 1 / M0): [█████████░] ~92%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
@@ -35,6 +35,7 @@ _None — queue clear._
 - #28 HL7v2 scaffold — `providers/hl7v2.py` `HL7v2Provider`: parses one ADT^A01 PID → FHIR Patient demographics, `partial=True` + explicit scaffold warning, honest coverage dict, `ConnectorDataError` on bad input, conforms to the Provider ABC + 18 tests (PR #50). The §8 'first to cut' connector, honestly framed.
 - #17 packet API slice — `api/packet.py` (/patients, /{id}/packet w/ X-Cache:HIT, /{id}/resource/{rtype}/{id} + /evidence/{id} citation resolution, /{id}/refresh w/ X-Cache:REFRESH, /connectors) + `api/auth.py` (HTTPBearer dev-token) + CORS localhost:3000 + 3 tests (PR #51). Runs against an in-memory STAND-IN (`cache/store.py` static data) — real cache (#12) + reasoning (#14) replace it. NOTE: `cache/store.py` + `auth.py` will collide with #12/#13/dev-auth work — reconcile when building those.
 - #21 follow-up (PR #53) — corrected `acb.json` (every ingredient RxCUI re-derived from RxNav; the prior file collided RxCUIs across distinct drugs — 41493×4, 3498, 3489, 354770 — which would mis-key the ACB bridge; nortriptyline deduped to published grade 1; 74 drugs, 0 dup names/RxCUIs) + `SOURCES.md` (bundle med list corrected — no warfarin in the bundle; planted interaction is in the PDF + Beers rule; dropped uncommitted generator-script path). Resolves the Copilot data findings from #47.
+- Core 100% coverage (PR #57) — `test_coverage_branches.py` (27 branch tests) brings `fhir/providers/cache/knowledge/reasoning` to 100% line coverage; deleted dead `fhir/flattener.py`; CI gate raised to `--cov-fail-under=100` on those packages (two-tier bar). Verified on py3.12 (CI runtime) = 100.00%, 365 stmts, 0 missed. NOTE: coverage must be measured on **Python 3.12** — local 3.9 can't import the code (UTC/slots), gives a false ~13%.
 
 ### Ready / unblocked now
 
