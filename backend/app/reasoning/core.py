@@ -247,7 +247,7 @@ async def run_reasoning(
                 temperature=0.0,
             ),
         )
-    except (genai_errors.ClientError, httpx.HTTPStatusError, httpx.RequestError):
+    except (genai_errors.APIError, httpx.HTTPStatusError, httpx.RequestError):
         # REASON-08: abstention — cannot produce any hypotheses
         return []
 

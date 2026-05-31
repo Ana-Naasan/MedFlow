@@ -519,6 +519,35 @@ class TestRunReasoning:
         assert hypotheses == []
 
     @pytest.mark.asyncio
+    async def test_abstention_on_gemini_5xx(
+        self,
+        sample_flattened_text: str,
+        sample_evidence_snippets: list[EvidenceSnippet],
+    ) -> None:
+        """Gemini 5xx (ServerError) → REASON-08 abstention."""
+        mock_aio_models = AsyncMock()
+        mock_aio_models.generate_content.side_effect = genai_errors.ServerError(
+            503, {}, MagicMock()
+        )
+
+        mock_aio = MagicMock()
+        mock_aio.models = mock_aio_models
+
+        mock_client = MagicMock()
+        mock_client.aio = mock_aio
+
+        mock_genai = MagicMock()
+        mock_genai.return_value = mock_client
+
+        with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key"}):
+            with patch("backend.app.reasoning.core.Client", mock_genai):
+                hypotheses = await run_reasoning(
+                    sample_flattened_text, sample_evidence_snippets
+                )
+
+        assert hypotheses == []
+
+    @pytest.mark.asyncio
     async def test_abstention_on_httpx_error(
         self,
         sample_flattened_text: str,
