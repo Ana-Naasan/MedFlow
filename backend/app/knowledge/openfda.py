@@ -36,6 +36,8 @@ from typing import Any
 
 import httpx
 
+from backend.app.dtos import EvidenceSnippet  # re-exported for backward-compat imports
+
 BASE_URL = "https://api.fda.gov/drug"
 
 _RATE_LIMIT_RATE = 200  # tokens per minute (below the 240 cap)
@@ -55,21 +57,6 @@ _SERIOUSNESS_FLAGS: dict[str, str] = {
 }
 
 # ── Data containers ────────────────────────────────────────────────────────
-
-
-@dataclass
-class EvidenceSnippet:
-    """A single piece of evidence with a stable, reproducible ID.
-
-    ``id`` is derived deterministically from the drug ref + snippet type so the
-    same snippet always gets the same ID across runs. ``ref``/``kind`` mirror
-    the ``Citation`` DTO for easy conversion.
-    """
-
-    id: str
-    kind: str  # "openfda_adverse_event" | "openfda_label"
-    ref: str
-    label: str
 
 
 @dataclass
