@@ -39,8 +39,12 @@ async def get_packet(
     response: Response,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> dict[str, object]:
-    async def fetcher():
-        return build_packet(patient_id).model_dump()
+    built: dict[str, object] = {}
+
+    async def fetcher() -> dict[str, object]:
+        nonlocal built
+        built = build_packet(patient_id).model_dump()
+        return built
 
     row, cache_status = await repo.get_or_refresh(
         db,
@@ -54,7 +58,11 @@ async def get_packet(
     )
     response.headers["X-Cache"] = cache_status.value
 
-    body = row.body if row is not None else (await fetcher())
+    # Reuse the body produced inside get_or_refresh — never re-fetch outside the
+    # lock (which would bypass the once-only refresh + audit). A MISS (lost the
+    # race with nothing cached) yields an empty body; the X-Cache: MISS header
+    # signals the client to retry.
+    body = row.body if row is not None else built
     return {**body, "cache_status": cache_status.value}
 
 

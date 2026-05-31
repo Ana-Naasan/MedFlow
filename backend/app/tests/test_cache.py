@@ -556,13 +556,16 @@ def test_hit_refresh_lifecycle():
 
 
 def test_single_refresh_under_concurrent_reads(monkeypatch):
-    """Only the advisory-lock winner calls the fetcher; all others serve stale cache.
+    """Wiring test: given a single lock winner, only the winner fetches and the
+    losers serve the cached row (the get_or_refresh else-branch).
 
-    Five coroutines race via asyncio.gather.  The monkeypatched lock lets exactly
-    one win; the others go to the else-branch and serve the stale cached row.
-    StaticPool (single shared SQLite connection) lets each coroutine use its own
-    session object while still seeing each other's in-transaction writes, avoiding
-    both "Session is already flushing" conflicts and cross-session visibility gaps.
+    SCOPE/LIMITATION: the lock is monkeypatched (one_winner), so this proves the
+    *branch wiring*, NOT the production once-only guarantee. SQLite + StaticPool
+    serialise everything on one connection and cannot model the cross-transaction
+    isolation that pg_try_advisory_xact_lock provides — so the real "expired read
+    triggers exactly one refresh under simultaneous requests" (#13 Done-when) is
+    only verifiable against live Postgres (a `live`-marked PG concurrency test is
+    the way to prove it; tracked as a follow-up).
     """
     grant_count = 0
     fetch_count = 0
