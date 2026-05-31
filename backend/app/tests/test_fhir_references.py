@@ -2,8 +2,6 @@
 
 import copy
 
-import pytest
-
 from backend.app.fhir.references import resolve_references
 
 _RAW = {
