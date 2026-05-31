@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — ran the gsd-add-tests skill: drove the correctness-critical core to **100% line coverage** and raised the CI gate to `--cov-fail-under=100` on `fhir/providers/cache/knowledge/reasoning` (PR #57, merged; CI green at 100%). Added `test_coverage_branches.py` (27 branch tests), deleted dead `fhir/flattener.py`. Earlier: cleared the 6-PR queue (#47/#48/#53/#52/#50/#51). **PR #54 (#9 docker wiring, Hamza) still OPEN** — reviewed (CI green, no secrets), will merge next.
+Last activity: 2026-05-31 — ran a **Phase-1/M0 validation audit** (goal-backward verification vs the 5 success criteria + 14 requirements; written to `phases/01-foundation-contracts-m0-setup/01-VALIDATION.md`). Verdict: M0 substantively COMPLETE on merged code, with 4 in-repo gaps. Closed the two material ones via **quick task 260531-2sh** (branch `feat/fe07-openapi-contract`, **PR #61**): FE-07 typed-client wiring (per-request bearer `.use()` middleware + `openapi-react-query` `$api`) and regenerated the stale `openapi.json` from the live FastAPI app (now covers `/patients`,`/connectors`,`/evidence/...`). Frontend lint+tsc+vitest green (7/7). Remaining 2 gaps (no backend mypy in CI / CODEOWNERS routes only `.planning/`) = fix-or-accept at the phase-boundary gate. Earlier this session: PR #57 (core 100% coverage + gate, merged).
 
 Progress (Phase 1 / M0): [█████████░] ~92%
 
@@ -21,6 +21,9 @@ Progress (Phase 1 / M0): [█████████░] ~92%
 
 - **#55 (#12 cache, ha/issue-12, Hamza)** — "added database caching", THE REAL Postgres cache. **Must reconcile with #51's in-memory stand-in `cache/store.py`** before merge (don't double-build), and the CI gate now requires `app/cache` at 100% coverage. Review carefully.
 - **#56 (#14 openFDA drug-safety, feat/drug-safety-openfda-14)** — reasoning/knowledge runtime; gate requires `app/knowledge`+`app/reasoning` at 100%.
+- **#58 (#11 MockFHIR connector, ha/issue-11, Hamza)** — CONN-02; M1 §22 prerequisite. NOT yet reviewed — prioritize in the merge queue.
+- **#59 (#27 PDF connector, feat/pdf-connector)** — CONN-04 char-offset provenance; Phase 4/M3 work. NOT yet reviewed.
+- **#61 (FE-07 + openapi.json, feat/fe07-openapi-contract, Bader)** — closes the two material M0 audit gaps; frontend lint+tsc+vitest green (7/7), code-only branch (no `.planning`), no AI-trace watermarks. Ready to review/merge.
 
 ### Done (on `planning`, green)
 
@@ -96,6 +99,16 @@ Copilot data findings from #21 — RESOLVED in PR #53 (merged). Remaining are co
 - [Phase 2]: The hour-6 §22 gate is the survival floor — the MockFHIR → cache → flatten → reason → verified cited hypothesis → /packet → rendered clickable citation chain must be green before widening. Watch the clock; apply the cut order if at risk.
 - [Phase 3]: RxNav→DDInter/Beers/ACB bridge is keyed by name/ingredient/ATC (not RxCUI) — a string/class match with miss risk (salts, synonyms, combos); needs the flagged fallback and manual verification for demo drugs.
 - [PHASE-BOUNDARY REVIEW GATE — standing rule, user-directed 2026-05-31]: Before advancing from ANY phase (1→2, 2→3, …) to the next, run a full multi-agent review over that phase's merged code, in order: (1) `/gsd-code-review` (bugs + quality), (2) `/gsd-verify-work` (every ROADMAP success criterion actually TRUE — the spec/"no mistakes" check), (3) `/gsd-secure-phase` (threat + SEC-02 PHI-minimization / read-only / no-secrets audit), (4) `/gsd-add-tests` (coverage gaps on critical-path code). Findings → fix-forward via the standard review→approve→merge flow, THEN advance. Do NOT run the gate until the phase is actually complete (e.g. Phase 1 is NOT done while PR #51/#17 is open).
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260531-2sh | FE-07 typed-client wiring + regenerate stale openapi.json (M0 contract gaps; PR #61) | 2026-05-31 | 4ce80e7 | [260531-2sh-fix-fe-07-typed-client-wiring-and-regene](./quick/260531-2sh-fix-fe-07-typed-client-wiring-and-regene/) |
+
+### Phase 1 / M0 Validation Audit (2026-05-31)
+
+Goal-backward audit vs the 5 success criteria + 14 requirements → `phases/01-foundation-contracts-m0-setup/01-VALIDATION.md`. **M0 substantively COMPLETE** on merged code (FHIR subset, deterministic flattener, SEC-02 minimization, Provider contract, OpenAPI/typed-client path all proven at the 100% gate). 4 in-repo gaps found; 2 material ones closed in PR #61 (FE-07, stale openapi.json). **2 remaining (minor, fix-or-accept at the phase-boundary gate):** no backend typecheck/mypy in CI (INFRA-02); CODEOWNERS routes only `.planning/` (INFRA-04). OPS-01 real-key provisioning (Hamza) is external, not a code gap.
 
 ## Deferred Items
 
