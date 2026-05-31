@@ -13,6 +13,9 @@ class Hypothesis(BaseModel):
     why: str
     severity: str
     confidence: str
+    group: str | None = Field(
+        default=None, description="Stable cross-reference key for dismiss-similar."
+    )
     citations: list[Citation] = Field(default_factory=list)
 
 
@@ -22,3 +25,31 @@ class DecisionPacket(BaseModel):
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     data_gaps: list[str] = Field(default_factory=list)
     cache_status: str | None = None
+
+
+class IntakeRequest(BaseModel):
+    connector: str = Field(..., description="Registered connector name, e.g. 'mock-fhir'.")
+    source_patient_id: str = Field(..., description="Patient ID in the source system.")
+    patient_id: str | None = Field(default=None, description="Our patient ID; minted if absent.")
+
+
+class IntakeResponse(BaseModel):
+    patient_id: str
+    status: str
+    resource_count: int
+    hypothesis_ids: list[str] = Field(default_factory=list)
+
+
+class HypothesisActionRequest(BaseModel):
+    patient_id: str = Field(..., description="Patient ID for the audit log.")
+
+
+class HypothesisConfirmResponse(BaseModel):
+    id: str
+    status: str
+
+
+class HypothesisDismissResponse(BaseModel):
+    id: str
+    status: str
+    dismissed_ids: list[str]

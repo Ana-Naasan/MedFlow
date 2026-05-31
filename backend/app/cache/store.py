@@ -83,6 +83,7 @@ def build_packet(patient_id: str) -> DecisionPacket:
                 ),
                 severity="moderate",
                 confidence="low",
+                group="drug:aspirin;risk:bleeding",
                 citations=[
                     Citation(kind="resource", ref="Patient/pat-001", label="Patient/pat-001"),
                     Citation(

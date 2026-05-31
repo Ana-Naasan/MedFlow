@@ -55,3 +55,17 @@ class AuditEvent(Base):
     resource_ref = Column(String, nullable=False)  # e.g. "Condition/cond-001"
     actor = Column(String, nullable=False)
     occurred_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+class HypothesisRecord(Base):
+    """Persisted hypothesis state for confirm/dismiss actions."""
+
+    __tablename__ = "hypothesis"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    patient_id = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    group = Column(String, nullable=True)  # stable cross-ref key for dismiss-similar
+    status = Column(String, nullable=False, default="pending")  # pending|confirmed|dismissed
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_now)
