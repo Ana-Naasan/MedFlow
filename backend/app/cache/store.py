@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from backend.app.dtos import CategoryCompleteness, Citation, DecisionPacket, Hypothesis
+from backend.app.fhir.data_gaps import apply_gap_downgrades
 
 # ── Static patient data ───────────────────────────────────────────────────────
 #
@@ -180,78 +181,90 @@ def build_packet(patient_id: str) -> DecisionPacket:
 
 
 def _build_demo_001_packet() -> DecisionPacket:
+    # Authored at maximum suspected confidence; the data_gaps gate below
+    # downgrades both medication-citing hypotheses one step because the
+    # patient record has no AllergyIntolerance or Observation resources
+    # (issue #30: never claim safety from absence).
+    hypotheses = [
+        Hypothesis(
+            id="hyp-DEMO-001-bleeding",
+            title="Warfarin + Aspirin co-prescription with supratherapeutic INR",
+            why=(
+                "Patient is on warfarin (INR 3.2 — above the 2.0–3.0 target) and aspirin "
+                "81 mg concurrently. DDInter classifies this as a Major interaction. Aspirin "
+                "displaces warfarin from protein binding and adds antiplatelet effect, "
+                "compounding bleed risk."
+            ),
+            severity="high",
+            confidence="high",
+            group="drug:warfarin+aspirin;risk:bleeding",
+            citations=[
+                Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
+                Citation(
+                    kind="resource",
+                    ref="MedicationStatement/med-warfarin",
+                    label="Warfarin (PDF)",
+                ),
+                Citation(
+                    kind="resource",
+                    ref="MedicationStatement/med-aspirin",
+                    label="Aspirin (PDF)",
+                ),
+                Citation(
+                    kind="evidence",
+                    ref="ddinter-warfarin-aspirin",
+                    label="DDInter warfarin-aspirin (Major)",
+                ),
+                Citation(
+                    kind="evidence",
+                    ref="openfda-warfarin-interactions",
+                    label="openFDA warfarin label",
+                ),
+            ],
+        ),
+        Hypothesis(
+            id="hyp-DEMO-001-anticholinergic",
+            title="Amitriptyline in elderly — high anticholinergic burden",
+            why=(
+                "Amitriptyline has an ACB score of 3 (highest tier). AGS Beers Criteria 2023 "
+                "explicitly recommends avoiding tricyclic antidepressants in adults 65+ due to "
+                "risk of cognitive impairment, falls, and delirium. Patient is 82 years old."
+            ),
+            severity="moderate",
+            confidence="high",
+            group="drug:amitriptyline;risk:anticholinergic",
+            citations=[
+                Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
+                Citation(
+                    kind="resource",
+                    ref="MedicationStatement/med-amitriptyline",
+                    label="Amitriptyline (PDF)",
+                ),
+                Citation(
+                    kind="evidence",
+                    ref="beers-amitriptyline-anticholinergic",
+                    label="AGS Beers Criteria 2023 — amitriptyline",
+                ),
+            ],
+        ),
+    ]
+    # Labs (Observation) and Allergies (AllergyIntolerance) are safety-critical
+    # gaps for this patient — drop med-citing hypotheses one rung on the ladder.
+    hypotheses = apply_gap_downgrades(
+        hypotheses, gap_fhir_types={"AllergyIntolerance", "Observation"}
+    )
     return DecisionPacket(
         patient_id="DEMO-001",
         summary_markdown=(
             "### Clinical Alerts — Eleanor Smith (82F)\n"
-            "- **High risk:** Warfarin + Aspirin co-prescription → major bleeding risk "
-            "(INR 3.2, above therapeutic range). Immediate review recommended.\n"
+            "- **Suspected high risk:** Warfarin + Aspirin co-prescription → major bleeding risk "
+            "(INR 3.2 noted in narrative, structured lab confirmation pending). Confidence "
+            "downgraded one step — verify allergy history and connect lab system before acting.\n"
             "- **Moderate risk:** Amitriptyline in elderly patient → Anticholinergic Cognitive "
-            "Burden score 3 (Beers Criteria 2023). Consider safer alternative."
+            "Burden score 3 (Beers Criteria 2023). Confidence downgraded pending allergy/lab "
+            "verification; consider safer alternative."
         ),
-        hypotheses=[
-            Hypothesis(
-                id="hyp-DEMO-001-bleeding",
-                title="Warfarin + Aspirin co-prescription with supratherapeutic INR",
-                why=(
-                    "Patient is on warfarin (INR 3.2 — above the 2.0–3.0 target) and aspirin "
-                    "81 mg concurrently. DDInter classifies this as a Major interaction. Aspirin "
-                    "displaces warfarin from protein binding and adds antiplatelet effect, "
-                    "compounding bleed risk."
-                ),
-                severity="high",
-                confidence="high",
-                group="drug:warfarin+aspirin;risk:bleeding",
-                citations=[
-                    Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
-                    Citation(
-                        kind="resource",
-                        ref="MedicationStatement/med-warfarin",
-                        label="Warfarin (PDF)",
-                    ),
-                    Citation(
-                        kind="resource",
-                        ref="MedicationStatement/med-aspirin",
-                        label="Aspirin (PDF)",
-                    ),
-                    Citation(
-                        kind="evidence",
-                        ref="ddinter-warfarin-aspirin",
-                        label="DDInter warfarin-aspirin (Major)",
-                    ),
-                    Citation(
-                        kind="evidence",
-                        ref="openfda-warfarin-interactions",
-                        label="openFDA warfarin label",
-                    ),
-                ],
-            ),
-            Hypothesis(
-                id="hyp-DEMO-001-anticholinergic",
-                title="Amitriptyline in elderly — high anticholinergic burden",
-                why=(
-                    "Amitriptyline has an ACB score of 3 (highest tier). AGS Beers Criteria 2023 "
-                    "explicitly recommends avoiding tricyclic antidepressants in adults 65+ due to "
-                    "risk of cognitive impairment, falls, and delirium. Patient is 82 years old."
-                ),
-                severity="moderate",
-                confidence="high",
-                group="drug:amitriptyline;risk:anticholinergic",
-                citations=[
-                    Citation(kind="resource", ref="Patient/DEMO-001", label="Patient/DEMO-001"),
-                    Citation(
-                        kind="resource",
-                        ref="MedicationStatement/med-amitriptyline",
-                        label="Amitriptyline (PDF)",
-                    ),
-                    Citation(
-                        kind="evidence",
-                        ref="beers-amitriptyline-anticholinergic",
-                        label="AGS Beers Criteria 2023 — amitriptyline",
-                    ),
-                ],
-            ),
-        ],
+        hypotheses=hypotheses,
         data_gaps=[
             "INR result noted in narrative but no structured lab source connected",
             "Allergy history not documented",
