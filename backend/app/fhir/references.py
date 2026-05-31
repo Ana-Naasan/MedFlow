@@ -56,7 +56,9 @@ def resolve_references(
     resource: dict[str, Any],
     id_map: dict[str, str],
 ) -> dict[str, Any]:
-    """Return a **new** dict with all ``urn:uuid:…`` references rewritten.
+    """Rewrite any mapped ``urn:uuid:…`` reference strings within *resource*.
+
+    If *id_map* is empty or *resource* is not a dict, *resource* is returned unchanged.
 
     Parameters
     ----------
