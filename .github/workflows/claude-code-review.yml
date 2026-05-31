@@ -1,0 +1,96 @@
+name: Claude Auto Review
+
+# Automated PR code review by Claude, modeled on the project's GSD phase-boundary
+# review gate: an Opus orchestrator fans out subagents (one per review dimension),
+# adversarially verifies high-severity findings, then posts inline comments + a
+# single summary verdict. Runs on every opened PR and on new commits to an open PR.
+#
+# REQUIRES (one-time, repo-admin only — cannot be done from this file):
+#   1. Install the Claude GitHub App:  https://github.com/apps/claude
+#      (grant Contents R/W, Issues R/W, Pull requests R/W on this repo)
+#   2. Add the auth secret under Settings → Secrets and variables → Actions:
+#        CLAUDE_CODE_OAUTH_TOKEN   (uses a Claude subscription; run `claude setup-token`)
+#      To switch to pay-per-token instead, replace the `claude_code_oauth_token:`
+#      line below with `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}`.
+#   3. Settings → Actions → General → enable read/write workflow permissions.
+#
+# COST: this is the "ultracode fan-out" profile — Opus orchestrator + per-dimension
+# subagents + an adversarial verify pass on EVERY non-draft PR push. It is the most
+# thorough and the most expensive profile. To dial down: lower `--max-turns`, remove
+# `Task` from --allowedTools (collapses to a single-pass review), or switch
+# `--model claude-opus-4-8` → `claude-sonnet-4-6`.
+#
+# NOTE: does NOT retro-review PRs opened before it landed. Trigger a review on an
+# existing PR by pushing a commit or commenting `@claude review`.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    # Skip drafts so the fan-out budget is not spent on work-in-progress.
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are the automated PR reviewer for the Umraa polypharmacy
+            decision-packet project. Run a thorough, multi-dimensional review
+            modeled on the project's GSD phase-boundary review gate, fanning out
+            with the Task tool. Do NOT do it all in one linear pass.
+
+            STEP 1 — Read the diff: `gh pr diff ${{ github.event.pull_request.number }}`.
+            Identify the changed files and what the PR is trying to do.
+
+            STEP 2 — Fan out FOUR parallel review subagents (Task tool), one per
+            dimension. Each returns findings as {severity, file:line, issue, fix},
+            severity one of {critical, high, medium, low}:
+              1. CORRECTNESS & LOGIC — bugs, bad async/await, unhandled errors,
+                 resource leaks, races. Scrutinise correctness-critical code hardest:
+                 connector->FHIR mappers, cache refresh-on-read / advisory-lock path,
+                 citation resolution, knowledge joins, the reasoning verifier.
+              2. SECURITY & PHI (SEC-02) — no name/address/phone/next-of-kin reaching
+                 the reasoning context; MRN-keyed; age-from-DOB; read-only connectors;
+                 no secrets committed; synthetic-data-only; injection/SSRF/unsafe
+                 deserialization. Enforce the non-negotiable invariant: no resolvable
+                 citation -> not shown; "may be associated — consider reviewing"
+                 language, never "caused by".
+              3. CONTRACT & CRITERIA — does the change uphold the FHIR subset/flattener
+                 contracts, the Provider ABC + coverage/partial/ConnectorError contract,
+                 and the slim-DTO / OpenAPI typed-client contract? Backward compatibility.
+              4. TEST ADEQUACY — are changes covered by MEANINGFUL assertions (not just
+                 line coverage)? The project gates fhir/providers/cache/knowledge/
+                 reasoning at 100% on Python 3.12. Flag missing or assert-light tests.
+
+            STEP 3 — ADVERSARIAL VERIFY: for every CRITICAL, HIGH, or security finding,
+            spawn a verifier subagent that tries to REFUTE it by reading the actual
+            code. Default to refuted if it cannot find concrete supporting evidence.
+            Drop findings that do not survive; adjust over/under-stated severities.
+
+            STEP 4 — POST:
+              - Inline comments (mcp__github_inline_comment__create_inline_comment) ONLY
+                for verified findings, at the precise file:line.
+              - ONE top-level summary comment (`gh pr comment`) with a verdict
+                (PASS / CONCERNS / BLOCK), findings grouped by verified severity, a short
+                "what I checked" note, and any deferred/manual-only items.
+
+            Be concise. Report only verified, substantive issues. Do NOT nitpick
+            formatting that ruff/black/eslint already enforce.
+          claude_args: |
+            --max-turns 40
+            --model claude-opus-4-8
+            --allowedTools "Task,Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
