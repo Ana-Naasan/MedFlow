@@ -2,14 +2,18 @@
 
 Supports two deliberately different schemas (Institution A and Institution B)
 through small per-hospital translation functions that both produce the same
-FHIR-like resource dicts.  All connections use READ ONLY transactions so the
-database role can never be used to modify hospital data.
+FHIR-like resource dicts.  Every query runs inside a ``BEGIN READ ONLY``
+transaction, which blocks writes/DDL at the wire level regardless of the
+connecting role's grants.  Using a SELECT-only database role (``umraa_reader``
+in the seeds) on top of that is defense-in-depth and a deployment concern
+(see #67 follow-ups for the docker-compose plumbing).
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from backend.app.providers.base import (
@@ -46,6 +50,85 @@ _OBSERVATION_STATUSES = frozenset(
         "unknown",
     }
 )
+
+# Valid R4B AllergyIntolerance.clinicalStatus value set.
+_ALLERGY_CLINICAL_STATUSES = frozenset({"active", "inactive", "resolved"})
+
+# Valid R4B Procedure.status value set.
+_PROCEDURE_STATUSES = frozenset(
+    {
+        "preparation",
+        "in-progress",
+        "not-done",
+        "on-hold",
+        "stopped",
+        "completed",
+        "entered-in-error",
+        "unknown",
+    }
+)
+
+
+def _iso_date(value: Any) -> str | None:
+    """Coerce a date-ish value to ISO ``yyyy-mm-dd`` or ``None``.
+
+    asyncpg returns DATE columns as ``datetime.date`` (Institution A's
+    ``patients.date_of_birth``); Institution B stores DOB in a ``VARCHAR``
+    that comes back as ``str``. Both must serialise identically so the
+    downstream FHIR ``birthDate`` value compares equal across schemas
+    (#67 honesty/fidelity).
+
+    Empty strings and ``None`` collapse to ``None`` so missing DOBs are
+    consistently absent rather than stringified ``"None"``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, str):
+        return value.strip() or None
+    return str(value).strip() or None
+
+
+def _allergy_clinical_status(raw: str | None) -> str:
+    """Coerce a source flag onto the R4B AllergyIntolerance.clinicalStatus
+    value set (active / inactive / resolved).
+
+    Institution B's per-event ``status_flag`` may carry tokens like
+    ``active``/``resolved``/``inactive`` directly. Unknown tokens fall back
+    to ``active`` — the safer-than-silently-dropping default already used
+    when no status column exists (Institution A).
+    """
+    if raw is None:
+        return "active"
+    norm = str(raw).strip().lower()
+    return norm if norm in _ALLERGY_CLINICAL_STATUSES else "active"
+
+
+def _procedure_status(raw: str | None) -> str:
+    """Coerce a source flag onto the R4B Procedure.status value set.
+
+    Institution B reuses one ``status_flag`` column across event classes,
+    so a PROC row may carry tokens like ``completed``, ``in-progress``,
+    ``active`` (from RX vocabulary), or ``done``. Map common synonyms and
+    fall back to ``unknown`` rather than overstating ``completed`` for
+    a token we don't recognise.
+    """
+    if raw is None:
+        return "completed"
+    norm = str(raw).strip().lower()
+    if norm in _PROCEDURE_STATUSES:
+        return norm
+    # Common cross-vocabulary synonyms:
+    if norm in {"active", "ongoing"}:
+        return "in-progress"
+    if norm in {"done", "finished"}:
+        return "completed"
+    if norm in {"cancelled", "canceled", "aborted"}:
+        return "stopped"
+    return "unknown"
 
 
 def _observation_status(raw: str | None) -> str:
@@ -94,9 +177,7 @@ def _translate_a(
             "gender": {"m": "male", "f": "female"}.get(
                 str(patient_row.get("sex", "")).lower(), "unknown"
             ),
-            "birthDate": (
-                str(patient_row["date_of_birth"]) if patient_row.get("date_of_birth") else None
-            ),
+            "birthDate": _iso_date(patient_row.get("date_of_birth")),
         }
     )
 
@@ -163,6 +244,10 @@ def _translate_a(
         resources.append(entry)
 
     for al in related.get("allergies", []):
+        # Institution A's ``allergies`` table has no status column — every row
+        # is assumed active (per the hospital's data dictionary). When the
+        # schema is later extended, route the column through
+        # ``_allergy_clinical_status`` like Institution B does.
         resources.append(
             {
                 "resourceType": "AllergyIntolerance",
@@ -182,6 +267,11 @@ def _translate_a(
         )
 
     for proc in related.get("procedures", []):
+        # Institution A's ``procedures_done`` table records only completed
+        # procedures (per the hospital's data dictionary), so ``status`` is
+        # hard-coded ``completed``. If A ever surfaces an in-progress or
+        # cancelled procedure column, route it through ``_procedure_status``
+        # like Institution B does.
         entry = {
             "resourceType": "Procedure",
             "id": proc["procedure_id"],
@@ -223,7 +313,7 @@ def _translate_b(
             "gender": {"M": "male", "F": "female"}.get(
                 str(pt_row.get("gender_code", "")).strip(), "unknown"
             ),
-            "birthDate": pt_row.get("dob"),
+            "birthDate": _iso_date(pt_row.get("dob")),
         }
     )
 
@@ -303,7 +393,12 @@ def _translate_b(
                     "id": eid,
                     "patient": {"reference": f"Patient/{pid}"},
                     "clinicalStatus": {
-                        "coding": [{"system": _SYS_ALLERGY_CLINICAL, "code": "active"}]
+                        "coding": [
+                            {
+                                "system": _SYS_ALLERGY_CLINICAL,
+                                "code": _allergy_clinical_status(ev.get("status_flag")),
+                            }
+                        ]
                     },
                     "code": {
                         "coding": [
@@ -321,7 +416,7 @@ def _translate_b(
             entry = {
                 "resourceType": "Procedure",
                 "id": eid,
-                "status": "completed",
+                "status": _procedure_status(ev.get("status_flag")),
                 "subject": {"reference": f"Patient/{pid}"},
                 "code": {
                     "coding": [
@@ -415,8 +510,19 @@ class PostgresProvider(Provider):
     """Read-only connector for hospital PostgreSQL databases.
 
     Supports two institution schemas (``institution="a"`` or ``"b"``).
-    Every query runs inside a READ ONLY transaction; the database role
-    cannot be used to modify any hospital data.
+
+    Read-only guarantee
+    -------------------
+    Every query runs inside a Postgres ``BEGIN READ ONLY`` transaction,
+    which blocks ``INSERT`` / ``UPDATE`` / ``DELETE`` / DDL at the wire
+    level regardless of the connecting role's grants. This is the
+    invariant the connector enforces and is what the tests pin.
+
+    The shipped seeds also define a ``umraa_reader`` role with
+    ``GRANT SELECT`` as defense-in-depth, but **wiring the connector to
+    that role is deployment guidance** — the runtime credential is
+    whatever the operator passes via ``dsn``. See #67 follow-ups for the
+    docker-compose plumbing.
     """
 
     id = "postgres"
@@ -439,14 +545,22 @@ class PostgresProvider(Provider):
         self._dsn = dsn
         self._institution = institution.lower()
         self._pool = pool  # injectable for tests; created lazily in production
+        # Guards the lazy pool creation: without this, two concurrent
+        # ``fetch_patient`` calls on a cold provider race past the ``is None``
+        # check and both ``asyncpg.create_pool``, leaking the loser's pool.
+        self._pool_lock = asyncio.Lock()
 
     async def _get_pool(self):
+        # Double-checked: the fast path stays lock-free once the pool exists.
         if self._pool is not None:
             return self._pool
-        import asyncpg
+        async with self._pool_lock:
+            if self._pool is not None:
+                return self._pool
+            import asyncpg
 
-        self._pool = await asyncpg.create_pool(self._dsn, min_size=1, max_size=3)
-        return self._pool
+            self._pool = await asyncpg.create_pool(self._dsn, min_size=1, max_size=3)
+            return self._pool
 
     async def fetch_patient(self, patient_id: str) -> FetchResult:
         try:
@@ -484,24 +598,43 @@ class PostgresProvider(Provider):
             for r in resources
             if r.get("id")
         ]
-        seen: set[str] = set()
-        coverage: dict[str, dict[str, bool]] = {}
-        _cap_map = {
-            "Patient": "patient",
-            "Condition": "conditions",
-            "MedicationStatement": "medications",
-            "Observation": "observations",
-            "AllergyIntolerance": "allergies",
-            "Procedure": "procedures",
+        # Coverage is driven by ``self.capabilities``: ``requested`` is True
+        # only for capabilities the connector actually advertises (#67 honesty
+        # bullet). Capabilities the connector does NOT support are absent from
+        # the coverage dict — they're not "missing", they're "out of scope".
+        _cap_flag_for_type: dict[str, tuple[str, Capability]] = {
+            "Patient": ("patient", Capability.PATIENT),
+            "Condition": ("conditions", Capability.CONDITIONS),
+            "MedicationStatement": ("medications", Capability.MEDICATIONS),
+            "Observation": ("observations", Capability.OBSERVATIONS),
+            "AllergyIntolerance": ("allergies", Capability.ALLERGIES),
+            "Procedure": ("procedures", Capability.PROCEDURES),
         }
-        for r in resources:
-            cap = _cap_map.get(r.get("resourceType", ""))
-            if cap and cap not in seen:
-                coverage[cap] = {"requested": True, "returned": True}
-                seen.add(cap)
-        for cap in _cap_map.values():
-            if cap not in coverage:
-                coverage[cap] = {"requested": True, "returned": False}
+        returned_caps: set[str] = {
+            _cap_flag_for_type[rtype][0]
+            for r in resources
+            if (rtype := r.get("resourceType", "")) in _cap_flag_for_type
+        }
+
+        coverage: dict[str, dict[str, bool]] = {}
+        for cap_name, cap_flag in _cap_flag_for_type.values():
+            if self.supports(cap_flag):
+                coverage[cap_name] = {
+                    "requested": True,
+                    "returned": cap_name in returned_caps,
+                }
+
+        # Partial honesty: when a supported capability returns no records we
+        # can't know whether the patient truly has none or the fetch was
+        # incomplete (absence ≠ none, #30/#67). Append a soft note and let
+        # ``partial`` reflect that — this is what flips ``partial_data_notice``
+        # into a non-empty surface in the /packet response.
+        empty_caps = sorted(
+            name for name, flags in coverage.items() if flags["requested"] and not flags["returned"]
+        )
+        if empty_caps:
+            label = "category" if len(empty_caps) == 1 else "categories"
+            warnings.append(f"No records returned for supported {label}: " + ", ".join(empty_caps))
 
         return FetchResult(
             bundle=bundle,
