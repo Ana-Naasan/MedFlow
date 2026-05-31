@@ -11,17 +11,15 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — merged PR #47 (#21 seeds), #48 (#5 FHIR subset), and #53 (my fix-forward for the #21 Copilot data findings: ACB RxCUIs re-derived from RxNav + nortriptyline dedupe + SOURCES.md provenance corrections). New PR queue arrived: #50 (#28 HL7v2), #51 (#17 packet API), #52 (#6 flattener — resolves the gap). Took Copilot reviews into account throughout.
+Last activity: 2026-05-31 — big PR-queue clearing pass (each: code+test+Copilot review → approve → admin squash-merge → close). Merged #47 (#21 seeds), #48 (#5 FHIR subset), #53 (fix-forward for #21 Copilot data findings), #52 (#6 flattener — closes the FHIR-03/04 gap), #50 (#28 HL7v2 scaffold). **#51 (#17 packet API) held — CI red on `black --check`** (router.py/auth.py/cache/store.py); commented the fix to Hamza, not merged.
 
-Progress (Phase 1 / M0): [██████▌░░░] ~65%
+Progress (Phase 1 / M0): [████████░░] ~80%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
-### Open PRs / In Review (awaiting code+test+Copilot review then merge)
+### Open PRs / In Review
 
-- #50 (#28 HL7v2 ADT scaffold connector, Vivek)
-- #51 (#17 hour-6 packet API slice, Hamza)
-- #52 (#6 FHIR tagged-text flattener, Vivek) — delivers FHIR-03/04, the deterministic citation-tagged context (the gap previously flagged)
+- **#51 (#17 hour-6 packet API slice, Hamza) — BLOCKED on CI**: `black --check` wants to reformat `backend/app/api/router.py`, `api/auth.py`, `cache/store.py` (ruff + tests pass; formatting only). Commented the one-line fix (`black .` + push); will review + merge once green. NOTE: this PR also introduces `cache/store.py` + `api/auth.py` — overlaps Bader's #12 cache / dev-auth territory; review for divergence before merge.
 
 ### Done (on `planning`, green)
 
@@ -32,12 +30,15 @@ Progress (Phase 1 / M0): [██████▌░░░] ~65%
 - #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
 - #9 (partial) — required-secret config guard + `.env` placeholders merged (PR #46). #9 stays OPEN until real Gemini/openFDA keys are provisioned in local `.env`.
 - #21 seed data — DDInter (10k interaction pairs), ACB scale, AGS 2023 Beers, Synthea sample FHIR bundle + text-layer clinical PDF vendored to `backend/app/seeds/` with provenance (SOURCES.md) + typed loaders + 26 tests (PR #47). Synthetic data only.
-- #5 FHIR subset — `fhir/subset.py` (6 validated R4B builders via `fhir.resources.R4B.*` killing the R5-default gotcha + `reasoning_view` SEC-02 minimization: strips name/address/telecom/contact, drops birthDate→`ageYears`, keeps MRN-only identifiers, recursive incl. contained, non-mutating) + `fhir/references.py` (`urn:uuid:`→`ResourceType/id`, non-mutating) + 26 tests (PR #48). Full suite green. Unblocks #6, #11. The flattener (FHIR-03/04) is its own issue #6 — now in review as PR #52.
+- #5 FHIR subset — `fhir/subset.py` (6 validated R4B builders via `fhir.resources.R4B.*` killing the R5-default gotcha + `reasoning_view` SEC-02 minimization: strips name/address/telecom/contact, drops birthDate→`ageYears`, keeps MRN-only identifiers, recursive incl. contained, non-mutating) + `fhir/references.py` (`urn:uuid:`→`ResourceType/id`, non-mutating) + 26 tests (PR #48). Full suite green. Unblocks #6, #11.
+- #6 flattener (FHIR-03/04) — `fhir/flatten.py` `flatten_to_tagged_text`: deterministic (fixed category order, NKA-aware), every category always rendered (present / `(stated as none by source)` / `(not documented)`), every clinical line tagged `[ResourceType/id]`, never emits raw FHIR JSON. + 190 lines of tests (PR #52). Closes the citation-tagged-context gap; feeds the Phase 2 reasoning core.
+- #28 HL7v2 scaffold — `providers/hl7v2.py` `HL7v2Provider`: parses one ADT^A01 PID → FHIR Patient demographics, `partial=True` + explicit scaffold warning, honest coverage dict, `ConnectorDataError` on bad input, conforms to the Provider ABC + 18 tests (PR #50). The §8 'first to cut' connector, honestly framed.
 - #21 follow-up (PR #53) — corrected `acb.json` (every ingredient RxCUI re-derived from RxNav; the prior file collided RxCUIs across distinct drugs — 41493×4, 3498, 3489, 354770 — which would mis-key the ACB bridge; nortriptyline deduped to published grade 1; 74 drugs, 0 dup names/RxCUIs) + `SOURCES.md` (bundle med list corrected — no warfarin in the bundle; planted interaction is in the PDF + Beers rule; dropped uncommitted generator-script path). Resolves the Copilot data findings from #47.
 
 ### Ready / unblocked now
 
 - #11 (Mohammad) — unblocked by #5 FHIR subset now merged
+- #14/#15 reasoning core — the flattener (#6) now feeds it the tagged context; still needs Gemini keys (#9)
 - #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #33 observability (Bader)
 - #20 RxNorm normalization, #22 interaction checking, #26 older-adult (Beers/ACB) lookups, #27 PDF connector demo — all unblocked by #21 seed data
 - #9 provisioning (Hamza) — config guard merged; real keys go in local `.env` (`GOOGLE_GENAI_API_KEY`, `OPENFDA_API_KEY`, `DEV_TOKEN`) to unblock the reasoning runtime (#14, #15)
