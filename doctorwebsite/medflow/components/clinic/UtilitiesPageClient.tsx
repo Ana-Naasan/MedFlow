@@ -20,6 +20,9 @@ import {
   CLINIC_STAFF,
   type UtilityCategory,
 } from "@/lib/mock-data/utilities"
+import { HealthCard } from "@/components/clinic/HealthCard"
+import { ConnectorsList } from "@/components/clinic/ConnectorsList"
+import { AuditLogTable } from "@/components/clinic/AuditLogTable"
 
 const CATEGORY_META: Record<UtilityCategory, { title: string; icon: LucideIcon }> = {
   integrations: { title: "Integrations", icon: Plug },
@@ -58,6 +61,10 @@ export function UtilitiesPageClient() {
           Reset demo data
         </button>
       </div>
+
+      <HealthCard />
+      <ConnectorsList />
+      <AuditLogTable />
 
       {categories.map((category) => {
         const meta = CATEGORY_META[category]
