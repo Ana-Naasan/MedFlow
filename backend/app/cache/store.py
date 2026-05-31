@@ -125,9 +125,3 @@ def get_evidence_card(evidence_id: str) -> dict[str, object] | None:
         return None
     evidence = patient["evidence"].get(evidence_id)
     return deepcopy(evidence) if evidence is not None else None
-
-
-def refresh_patient(patient_id: str) -> dict[str, object]:
-    if patient_id not in STATIC_PATIENTS:
-        return {"patient_id": patient_id, "status": "missing"}
-    return {"patient_id": patient_id, "status": "refreshed"}

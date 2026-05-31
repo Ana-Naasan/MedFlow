@@ -415,3 +415,29 @@ class TestReasoningView:
         }
         view = reasoning_view(raw)
         assert "identifier" not in view
+
+    def test_age_years_not_computed_when_birth_date_invalid(self):
+        """_compute_age_years returns None for unparseable values."""
+        for bad in ["", "not-a-date", None, 12345]:
+            raw = {
+                "resourceType": "Patient",
+                "id": "p1",
+                "birthDate": bad,
+            }
+            view = reasoning_view(raw)
+            assert "ageYears" not in view
+
+    def test_identifier_without_type_coding_ignored(self):
+        """_is_mrn_identifier returns False when type/coding is missing."""
+        raw = {
+            "resourceType": "Patient",
+            "id": "p1",
+            "birthDate": "2000-01-01",
+            "identifier": [
+                {"value": "test", "type": {}},
+                {"value": "test2"},
+                "not-a-dict",
+            ],
+        }
+        view = reasoning_view(raw)
+        assert "identifier" not in view

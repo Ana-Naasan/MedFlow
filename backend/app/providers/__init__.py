@@ -11,8 +11,11 @@ from backend.app.providers.base import (
     Provider,
 )
 from backend.app.providers.hl7v2 import HL7v2Provider
+from backend.app.providers.mock_fhir import MockFHIRProvider
 from backend.app.providers.postgres import PostgresProvider
 from backend.app.providers.registry import ConnectorNotFound, build, list_connectors, register
+
+register("mock-fhir", MockFHIRProvider)
 
 __all__ = [
     "Capability",
@@ -23,6 +26,7 @@ __all__ = [
     "FetchResult",
     "HealthStatus",
     "HL7v2Provider",
+    "MockFHIRProvider",
     "PostgresProvider",
     "Provider",
     "Provenance",
