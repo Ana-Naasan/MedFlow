@@ -69,7 +69,12 @@ describe("SuggestionCard — keyboard accessibility", () => {
     expect(document.activeElement).toBe(dismissBtn);
   });
 
-  it("calls onConfirm when Approve is activated via Enter key", () => {
+  // Approve/Dismiss are native <button> elements, which the browser activates
+  // on Enter/Space and dispatches a click for. jsdom does NOT synthesize that
+  // click from a keydown, so we assert the native-button guarantee explicitly
+  // (tagName + no role override) and that activation invokes the handler —
+  // rather than masking the assertion with a manual fireEvent.click after keyDown.
+  it("Approve is a native button (Enter/Space-activatable) and calls onConfirm when activated", () => {
     const onConfirm = vi.fn();
     render(
       <SuggestionCard
@@ -80,13 +85,13 @@ describe("SuggestionCard — keyboard accessibility", () => {
       />
     );
     const approveBtn = screen.getByRole("button", { name: /approve/i });
-    approveBtn.focus();
-    fireEvent.keyDown(approveBtn, { key: "Enter" });
+    expect(approveBtn.tagName).toBe("BUTTON");
+    expect(approveBtn.getAttribute("role")).toBeNull();
     fireEvent.click(approveBtn);
     expect(onConfirm).toHaveBeenCalledOnce();
   });
 
-  it("calls onDismiss when Dismiss is activated via Enter key", () => {
+  it("Dismiss is a native button (Enter/Space-activatable) and calls onDismiss when activated", () => {
     const onDismiss = vi.fn();
     render(
       <SuggestionCard
@@ -97,8 +102,8 @@ describe("SuggestionCard — keyboard accessibility", () => {
       />
     );
     const dismissBtn = screen.getByRole("button", { name: /dismiss/i });
-    dismissBtn.focus();
-    fireEvent.keyDown(dismissBtn, { key: "Enter" });
+    expect(dismissBtn.tagName).toBe("BUTTON");
+    expect(dismissBtn.getAttribute("role")).toBeNull();
     fireEvent.click(dismissBtn);
     expect(onDismiss).toHaveBeenCalledOnce();
   });
