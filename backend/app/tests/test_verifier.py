@@ -2,6 +2,7 @@
 
 All tests are pure-unit: lookups are lambda stubs, no DB or network required.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -22,7 +23,7 @@ _EVIDENCE_WITH_SPAN = {
     "span": {"page": 1, "start": 0, "end": 16, "snippet": "warfarin aspirin"},
 }
 
-_NO_RESOURCE: dict = {}   # sentinel — lookup returns None when this is used
+_NO_RESOURCE: dict = {}  # sentinel — lookup returns None when this is used
 
 
 def _resource_returns(resource: dict | None):
@@ -348,10 +349,12 @@ def test_empty_hypotheses_returns_abstention() -> None:
 
 def test_hypothesis_with_one_bad_citation_among_good_ones_dropped() -> None:
     """All-or-nothing: one bad citation drops the whole hypothesis."""
-    hyp = _make_hyp([
-        _resource_citation("Patient/pat-001"),  # good
-        _evidence_citation("fake-id"),           # bad
-    ])
+    hyp = _make_hyp(
+        [
+            _resource_citation("Patient/pat-001"),  # good
+            _evidence_citation("fake-id"),  # bad
+        ]
+    )
     packet = _make_packet([hyp])
     result = verify_packet(
         packet,

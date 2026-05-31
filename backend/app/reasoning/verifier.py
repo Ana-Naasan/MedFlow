@@ -7,6 +7,7 @@ rather than inventing an answer.
 
 This is intentionally plain, synchronous code with no AI involvement.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
