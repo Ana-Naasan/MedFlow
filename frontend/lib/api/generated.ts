@@ -123,6 +123,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/intake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Intake */
+        post: operations["post_intake_intake_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hypotheses/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Hypothesis */
+        post: operations["confirm_hypothesis_hypotheses__id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hypotheses/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss Hypothesis */
+        post: operations["dismiss_hypothesis_hypotheses__id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -131,6 +182,56 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HypothesisActionRequest */
+        HypothesisActionRequest: {
+            /** Patient Id */
+            patient_id: string;
+        };
+        /** HypothesisConfirmResponse */
+        HypothesisConfirmResponse: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+        };
+        /** HypothesisDismissResponse */
+        HypothesisDismissResponse: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Dismissed Ids */
+            dismissed_ids: string[];
+        };
+        /** IntakeRequest */
+        IntakeRequest: {
+            /**
+             * Connector
+             * @description Registered connector ID, e.g. 'mock-fhir'.
+             */
+            connector: string;
+            /**
+             * Source Patient Id
+             * @description Patient ID as known to the source connector.
+             */
+            source_patient_id: string;
+            /**
+             * Patient Id
+             * @description Override the stored patient ID; auto-generated UUID if omitted.
+             */
+            patient_id?: string | null;
+        };
+        /** IntakeResponse */
+        IntakeResponse: {
+            /** Patient Id */
+            patient_id: string;
+            /** Status */
+            status: string;
+            /** Resource Count */
+            resource_count: number;
+            /** Hypothesis Ids */
+            hypothesis_ids?: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -337,6 +438,109 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_intake_intake_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntakeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_hypothesis_hypotheses__id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HypothesisActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HypothesisConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_hypothesis_hypotheses__id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HypothesisActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HypothesisDismissResponse"];
                 };
             };
             /** @description Validation Error */

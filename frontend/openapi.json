@@ -2,7 +2,6 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Umraa API",
-    "description": "Stage B scaffold for the polypharmacy decision packet.",
     "version": "0.1.0"
   },
   "paths": {
@@ -308,6 +307,166 @@
           }
         }
       }
+    },
+    "/intake": {
+      "post": {
+        "tags": [
+          "intake"
+        ],
+        "summary": "Post Intake",
+        "operationId": "post_intake_intake_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntakeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/hypotheses/{id}/confirm": {
+      "post": {
+        "tags": [
+          "hypotheses"
+        ],
+        "summary": "Confirm Hypothesis",
+        "operationId": "confirm_hypothesis_hypotheses__id__confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HypothesisActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HypothesisConfirmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hypotheses/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "hypotheses"
+        ],
+        "summary": "Dismiss Hypothesis",
+        "operationId": "dismiss_hypothesis_hypotheses__id__dismiss_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HypothesisActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HypothesisDismissResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -324,6 +483,125 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HypothesisActionRequest": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id"
+        ],
+        "title": "HypothesisActionRequest"
+      },
+      "HypothesisConfirmResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "HypothesisConfirmResponse"
+      },
+      "HypothesisDismissResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "dismissed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dismissed Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "dismissed_ids"
+        ],
+        "title": "HypothesisDismissResponse"
+      },
+      "IntakeRequest": {
+        "properties": {
+          "connector": {
+            "type": "string",
+            "title": "Connector",
+            "description": "Registered connector ID, e.g. 'mock-fhir'."
+          },
+          "source_patient_id": {
+            "type": "string",
+            "title": "Source Patient Id",
+            "description": "Patient ID as known to the source connector."
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id",
+            "description": "Override the stored patient ID; auto-generated UUID if omitted."
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector",
+          "source_patient_id"
+        ],
+        "title": "IntakeRequest"
+      },
+      "IntakeResponse": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "resource_count": {
+            "type": "integer",
+            "title": "Resource Count"
+          },
+          "hypothesis_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hypothesis Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id",
+          "status",
+          "resource_count"
+        ],
+        "title": "IntakeResponse"
       },
       "ValidationError": {
         "properties": {
