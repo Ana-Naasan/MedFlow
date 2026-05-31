@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import Column, DateTime, String
-from sqlalchemy import JSON
+from sqlalchemy import JSON, Column, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB as _PG_JSONB
 
 from backend.app.database import Base
@@ -14,7 +13,7 @@ _JSONB = JSON().with_variant(_PG_JSONB(), "postgresql")
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class CachedResource(Base):
