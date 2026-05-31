@@ -11,29 +11,29 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — PR #44 (Provider ABC / connector interface, #3) opened and reviewed; scaffold + CI green on `planning`; spike #1 done
+Last activity: 2026-05-31 — PR #44 merged → #3 (Provider ABC) DONE, unblocking #12/#23/#28/#33. Spike #1, scaffold #2, CI #7 done. PR queue clear.
 
-Progress (Phase 1 / M0): [███░░░░░░░] ~30%
+Progress (Phase 1 / M0): [████░░░░░░] ~40%
 
-**Branch model:** `planning` = protected dev/integration branch (PR + 1 review required, no direct pushes); `main` = submission branch (promote `planning → main` when verified).
+**Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
 ### Open PRs / In Review
 
-| PR | Issue | Title | Author | CI | Review |
-|----|-------|-------|--------|----|--------|
-| #44 | #3 | Provider ABC / connector interface (registry, errors, 11 tests) | @B2707 | ✅ green | Reviewed (2 minor notes) — needs 1 teammate approval to merge |
+_None — queue clear._
 
 ### Done (on `planning`, green)
 
 - #1 spike — all 6 FHIR R4B resources import + `model_validate` (8 tests)
 - #2 scaffold — runnable monorepo (backend `/health`+`/docs`, frontend, docker-compose 3× Postgres)
+- #3 Provider ABC — registry + FetchResult/Provenance/HealthStatus + ConnectorError + coverage contract (11 tests). The fan-out unblocker.
 - #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
 
-### In flight
+### Ready / unblocked now
 
-- #9 provisioning (Hamza) — Gemini/openFDA keys; blocks reasoning runtime (#14, #15)
-- #5 FHIR subset (Mohammad) — Ready, starter posted; blocks #6, #11
-- #4 DTO/OpenAPI contract (Bader) — Ready; blocks API (#17) + all frontend
+- #4 DTO/OpenAPI contract (Bader) — blocks API (#17) + all frontend
+- #5 FHIR subset (Mohammad) — starter posted on the issue; blocks #6, #11
+- #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #28 HL7v2 scaffold (Vivek), #33 observability (Bader) — all freshly unblocked by #3
+- #9 provisioning (Hamza, in progress) — blocks reasoning runtime (#14, #15)
 
 ## Performance Metrics
 
@@ -73,7 +73,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1 — CRITICAL PATH]: #3 (Provider ABC, in review as PR #44) and #4 (DTO/OpenAPI contract) — both @B2707 — are the fan-out point. Until merged, all connectors (#11/#23/#27/#28), the cache→API chain (#12→#17), and all frontend (#19/#24/#25) stay blocked. Fastest team unblock = land #3 + #4.
+- [Phase 1 — CRITICAL PATH]: #3 (Provider ABC) is MERGED ✓ — unblocked the connectors + cache. **#4 (DTO/OpenAPI contract, @B2707) is now the top remaining bottleneck** — it blocks the API (#17) and all frontend (#19/#24/#25). Land #4 next. Also #5 (FHIR subset, Mohammad) unblocks #6/#11.
 - [Process]: `planning` is protected (PR + 1 review). Every PR gets a code review before merge; watch for AI-trace watermarks (PR #44 arrived with `Co-Authored-By: Claude` + `🤖 Generated with Claude Code` — both stripped). No Claude/AI references anywhere per project policy.
 - [Phase 2]: The hour-6 §22 gate is the survival floor — the MockFHIR → cache → flatten → reason → verified cited hypothesis → /packet → rendered clickable citation chain must be green before widening. Watch the clock; apply the cut order if at risk.
 - [Phase 3]: RxNav→DDInter/Beers/ACB bridge is keyed by name/ingredient/ATC (not RxCUI) — a string/class match with miss risk (salts, synonyms, combos); needs the flagged fallback and manual verification for demo drugs.
