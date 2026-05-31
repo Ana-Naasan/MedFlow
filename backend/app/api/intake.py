@@ -66,7 +66,9 @@ async def post_intake(
     packet = build_packet(patient_id)
     hypothesis_ids: list[str] = []
     for hyp in packet.hypotheses:
-        hyp_id = str(uuid.uuid4())
+        # Deterministic id (patient + packet hypothesis id) so re-running intake
+        # for the same patient updates the row instead of minting a duplicate.
+        hyp_id = f"{patient_id}:{hyp.id}"
         await repo.upsert_hypothesis(
             db,
             id=hyp_id,
