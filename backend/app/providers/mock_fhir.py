@@ -106,7 +106,11 @@ def _trim_and_validate(
             validated.append(model.model_dump(exclude_none=True))
         except Exception as exc:
             rid = raw.get("id", "?")
-            warnings.append(f"Skipped {rtype}/{rid}: {exc}")
+            # SEC-02: never interpolate the raw exception — a pydantic
+            # ValidationError renders `input_value=<offending field>`, which can
+            # echo Patient name/address/telecom into the (surfaced + logged)
+            # warnings. Keep the error class only.
+            warnings.append(f"Skipped {rtype}/{rid}: validation failed ({type(exc).__name__})")
 
     return validated, warnings
 
