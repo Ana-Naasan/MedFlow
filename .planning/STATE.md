@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 1 of 5 (Foundation & Contracts — M0 Setup)
 Status: In progress — team executing against GitHub issues on the `planning` dev branch
-Last activity: 2026-05-31 — PR #44 merged → #3 (Provider ABC) DONE, unblocking #12/#23/#28/#33. Spike #1, scaffold #2, CI #7 done. PR queue clear.
+Last activity: 2026-05-31 — merged PR #45 (#4 DTO/OpenAPI contract DONE) + PR #46 (#9 config-secret guard; #9 stays open pending real keys). #3 Provider ABC also done. PR queue clear.
 
-Progress (Phase 1 / M0): [████░░░░░░] ~40%
+Progress (Phase 1 / M0): [█████░░░░░] ~50%
 
 **Branch model:** `planning` = protected dev branch (PR + 1 review; teammates fully gated); `main` = submission branch. `.planning/` is owned by **@B2707 only** (CODEOWNERS + code-owner review; owner pushes `.planning` updates directly).
 
@@ -26,14 +26,15 @@ _None — queue clear._
 - #1 spike — all 6 FHIR R4B resources import + `model_validate` (8 tests)
 - #2 scaffold — runnable monorepo (backend `/health`+`/docs`, frontend, docker-compose 3× Postgres)
 - #3 Provider ABC — registry + FetchResult/Provenance/HealthStatus + ConnectorError + coverage contract (11 tests). The fan-out unblocker.
+- #4 DTO/OpenAPI contract — Citation/Hypothesis/DecisionPacket DTOs + `/packet` stub + regenerated typed client (PR #45). Frontend can now build against the typed client.
 - #7 CI — backend + frontend pipelines, coverage gate scaffolded (relaxed to 0 until core code lands)
+- #9 (partial) — required-secret config guard + `.env` placeholders merged (PR #46). #9 stays OPEN until real Gemini/openFDA keys are provisioned in local `.env`.
 
 ### Ready / unblocked now
 
-- #4 DTO/OpenAPI contract (Bader) — blocks API (#17) + all frontend
 - #5 FHIR subset (Mohammad) — starter posted on the issue; blocks #6, #11
-- #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #28 HL7v2 scaffold (Vivek), #33 observability (Bader) — all freshly unblocked by #3
-- #9 provisioning (Hamza, in progress) — blocks reasoning runtime (#14, #15)
+- #12 cache (Bader), #23 Postgres connector (Bader+Hamza), #28 HL7v2 scaffold (Vivek), #33 observability (Bader)
+- #9 provisioning (Hamza) — config guard merged; real keys go in local `.env` (`GOOGLE_GENAI_API_KEY`, `OPENFDA_API_KEY`, `DEV_TOKEN`) to unblock the reasoning runtime (#14, #15)
 
 ## Performance Metrics
 
