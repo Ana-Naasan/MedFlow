@@ -12,11 +12,24 @@ import hashlib
 from pathlib import Path
 
 import pytest
+from fhir.resources.R4B.medicationstatement import MedicationStatement
 
+from backend.app.fhir.flatten import flatten_to_tagged_text
 from backend.app.providers.base import Capability, ConnectorDataError, FetchResult
-from backend.app.providers.pdf import PDFProvider, _extract, extract_pages
+from backend.app.providers.pdf import (
+    PDFProvider,
+    _extract,
+    _extract_medications,
+    _extract_patient,
+    _make_span,
+    _medications_section,
+    _parse_date_english,
+    extract_pages,
+)
 
-_PDF = Path("backend/app/seeds/sample_clinical.pdf")
+# Anchor the fixture to this file (CWD-independent: CI runs pytest from backend/,
+# local runs from the repo root — a relative literal would break under one of them).
+_PDF = Path(__file__).resolve().parent.parent / "seeds" / "sample_clinical.pdf"
 _PATIENT_ID = "demo"
 
 # Freeze: any change to this file must be deliberate and reflected here.
@@ -101,7 +114,7 @@ def test_bundle_has_five_conditions(result: FetchResult) -> None:
 
 
 def test_bundle_has_eight_medications(result: FetchResult) -> None:
-    assert len(_resources(result, "MedicationRequest")) >= 7
+    assert len(_resources(result, "MedicationStatement")) >= 7
 
 
 def test_source_is_pdf(result: FetchResult) -> None:
@@ -160,14 +173,14 @@ def test_conditions_use_icd10_system(result: FetchResult) -> None:
 
 def test_warfarin_extracted(result: FetchResult) -> None:
     names = [
-        m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationRequest")
+        m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationStatement")
     ]
     assert any("Warfarin" in n for n in names)
 
 
 def test_aspirin_extracted(result: FetchResult) -> None:
     names = [
-        m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationRequest")
+        m["medicationCodeableConcept"]["text"] for m in _resources(result, "MedicationStatement")
     ]
     assert any("Aspirin" in n for n in names)
 
@@ -284,3 +297,118 @@ def test_lab_page_text_accessible(pages: dict[int, str]) -> None:
     assert 2 in pages
     assert "INR" in pages[2]
     assert "Creatinine" in pages[2]
+
+
+# ── Medications: FHIR R4B MedicationStatement shape ──────────────────────────
+
+
+def test_medications_are_medication_statements(result: FetchResult) -> None:
+    """Meds must be MedicationStatement, the 6-resource subset type the flattener
+    and reasoning core key on — a MedicationRequest is silently dropped downstream."""
+    assert _resources(result, "MedicationStatement")
+    assert not _resources(result, "MedicationRequest")
+
+
+def test_medications_validate_as_r4b(result: FetchResult) -> None:
+    """Every emitted medication must round-trip through the R4B model."""
+    meds = _resources(result, "MedicationStatement")
+    assert meds, "no medications extracted — test would pass vacuously"
+    for med in meds:
+        MedicationStatement.model_validate(med)
+
+
+def test_medications_have_status_and_subject(result: FetchResult) -> None:
+    meds = _resources(result, "MedicationStatement")
+    assert meds, "no medications extracted — test would pass vacuously"
+    for med in meds:
+        assert med["status"] == "active"
+        assert med["subject"]["reference"] == f"Patient/{_PATIENT_ID}"
+
+
+def test_medication_dose_survives_flatten(result: FetchResult) -> None:
+    """End-to-end: the extracted dose must reach the flattened reasoning context,
+    not merely sit on the resource dict. Regression for the producer/consumer gap
+    where the connector wrote dosage[].text but flatten._dose() read only the
+    structured doseQuantity — silently dropping every dose before reasoning."""
+    rendered = flatten_to_tagged_text([e["resource"] for e in result.bundle["entry"]])
+    meds_section = rendered.split("## Conditions")[0]
+    warfarin_line = [ln for ln in meds_section.splitlines() if "Warfarin" in ln]
+    assert warfarin_line, "Warfarin missing from flattened Medications section"
+    # The planted Warfarin interaction must carry its dose into the reasoning context.
+    assert "mg" in warfarin_line[0], f"dose dropped before reasoning: {warfarin_line[0]!r}"
+
+
+# ── Helper-level coverage: error, edge, and warning paths ────────────────────
+
+
+def test_fetch_patient_passes_through_connector_error() -> None:
+    """A missing PDF surfaces as ConnectorDataError, not re-wrapped."""
+    with pytest.raises(ConnectorDataError, match="PDF not found"):
+        asyncio.run(PDFProvider("nonexistent.pdf").fetch_patient("p1"))
+
+
+def test_fetch_patient_wraps_unexpected_error(tmp_path: Path) -> None:
+    """A non-PDF file makes pdfplumber raise; it is wrapped as ConnectorDataError."""
+    bad = tmp_path / "not.pdf"
+    bad.write_bytes(b"this is plainly not a PDF")
+    with pytest.raises(ConnectorDataError, match="PDF extraction failed"):
+        asyncio.run(PDFProvider(bad).fetch_patient("p1"))
+
+
+def test_make_span_returns_none_when_fragment_absent() -> None:
+    assert _make_span("the quick brown fox", "zebra", 1) is None
+
+
+def test_parse_date_english_rejects_unparseable() -> None:
+    assert _parse_date_english("not a date at all") is None
+
+
+def test_parse_date_english_rejects_unknown_month() -> None:
+    assert _parse_date_english("Smarch 3, 2020") is None
+
+
+def test_extract_patient_warns_on_missing_name_and_gender() -> None:
+    warnings: list[str] = []
+    patient = _extract_patient({1: "header only, no demographics here"}, "p1", [], warnings)
+    assert patient == {"resourceType": "Patient", "id": "p1"}
+    assert any("name/DOB not found" in w for w in warnings)
+    assert any("Gender not found" in w for w in warnings)
+
+
+def test_extract_medications_skips_header_row_and_warns_when_empty() -> None:
+    """A row whose name is the literal 'Medication' header is skipped; with no
+    real rows left, the connector records the no-medications warning."""
+    page = (
+        "MEDICATIONS AT DISCHARGE\n"
+        "Medication Dose/Route Indication Frequency\n"
+        "Medication 10 mg PO daily\n"
+        "CLINICAL PHARMACIST NOTE\n"
+    )
+    warnings: list[str] = []
+    meds = _extract_medications({1: page}, "p1", [], warnings)
+    assert meds == []
+    assert any("No medications extracted" in w for w in warnings)
+
+
+def test_medications_section_without_table_header() -> None:
+    """A med section lacking the table-header line falls back to the raw section
+    span starting at the section header."""
+    page = "MEDICATIONS AT DISCHARGE\nWarfarin 5 mg PO Daily\nCLINICAL PHARMACIST NOTE\n"
+    section = _medications_section(page)
+    assert section is not None
+    body, offset = section
+    assert offset == page.find("MEDICATIONS AT DISCHARGE")
+    assert "Warfarin" in body
+
+
+def test_provenance_snippet_matches_offsets_with_trailing_whitespace() -> None:
+    """Core citation invariant: span snippet must equal page_text[start:end] even
+    when the matched line carries trailing whitespace (stripping only the snippet
+    would silently break the offsets)."""
+    page = "MEDICATIONS AT DISCHARGE\nWarfarin 5 mg oral AFib Daily   \nCLINICAL PHARMACIST NOTE\n"
+    prov: list = []
+    _extract_medications({1: page}, "p1", prov, [])
+    assert prov, "no medication provenance produced"
+    for p in prov:
+        span = p.span
+        assert page[span["start"] : span["end"]] == span["snippet"]

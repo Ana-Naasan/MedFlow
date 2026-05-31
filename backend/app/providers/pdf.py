@@ -74,7 +74,7 @@ class TextSpan:
 
 
 class PDFProvider(Provider):
-    """Extracts Patient, Condition, and MedicationRequest records from a text-layer PDF.
+    """Extracts Patient, Condition, and MedicationStatement records from a text-layer PDF.
 
     Scanned (image-only) PDFs are rejected at extraction time.
     Character offsets in each Provenance.span point to exact source positions.
@@ -125,7 +125,7 @@ def _extract(path: Path, patient_id: str) -> FetchResult:
 
     patient = _extract_patient(pages, patient_id, provenance, warnings)
     conditions = _extract_conditions(pages, provenance)
-    meds = _extract_medications(pages, provenance, warnings)
+    meds = _extract_medications(pages, patient_id, provenance, warnings)
 
     bundle = {
         "resourceType": "Bundle",
@@ -161,6 +161,20 @@ def _make_span(text: str, fragment: str, page: int) -> TextSpan | None:
 
 def _span_dict(span: TextSpan) -> dict:
     return {"page": span.page, "start": span.start, "end": span.end, "snippet": span.snippet}
+
+
+def _trimmed_span(page: int, page_text: str, start: int, end: int) -> TextSpan:
+    """Build a span whose snippet is exactly ``page_text[start:end]`` after
+    trimming surrounding whitespace from the offsets.
+
+    This keeps the core provenance invariant (``page_text[start:end] == snippet``)
+    true even when a matched line carries leading/trailing whitespace — stripping
+    only the snippet, as before, would silently break it for such lines.
+    """
+    raw = page_text[start:end]
+    start += len(raw) - len(raw.lstrip())
+    end -= len(raw) - len(raw.rstrip())
+    return TextSpan(page=page, start=start, end=end, snippet=page_text[start:end])
 
 
 def _parse_date_english(raw: str) -> str | None:
@@ -228,12 +242,7 @@ def _extract_conditions(
             description = m.group("text").strip()
             icd_code = m.group("icd")
             condition_id = f"condition-{icd_code.replace('.', '-').lower()}"
-            span = TextSpan(
-                page=page_num,
-                start=m.start(),
-                end=m.end(),
-                snippet=m.group(0).strip(),
-            )
+            span = _trimmed_span(page_num, text, m.start(), m.end())
             conditions.append(
                 {
                     "resourceType": "Condition",
@@ -257,6 +266,7 @@ def _extract_conditions(
 
 def _extract_medications(
     pages: dict[int, str],
+    patient_id: str,
     provenance: list[Provenance],
     warnings: list[str],
 ) -> list[dict]:
@@ -276,27 +286,26 @@ def _extract_medications(
                 continue
 
             med_id = f"med-{re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')}"
-            raw_line = m.group(0)
-            # Offset within page text = section_offset + offset within section
-            abs_start = section_offset + m.start()
-            abs_end = section_offset + m.end()
-            span = TextSpan(
-                page=page_num,
-                start=abs_start,
-                end=abs_end,
-                snippet=raw_line.strip(),
+            # Offsets map into the page text: section body offset + match offset.
+            span = _trimmed_span(
+                page_num, text, section_offset + m.start(), section_offset + m.end()
             )
             meds.append(
                 {
-                    "resourceType": "MedicationRequest",
+                    "resourceType": "MedicationStatement",
                     "id": med_id,
+                    # Discharge medications are the regimen the patient leaves on.
+                    "status": "active",
+                    "subject": {"reference": f"Patient/{patient_id}"},
                     "medicationCodeableConcept": {"text": name},
-                    "dosageInstruction": [{"text": f"{dose} — {rest}"}],
+                    # Free-text dose/route/indication (a space join — not " — ",
+                    # which would split a duplicated-glyph dose like "5 mg 5 mg").
+                    "dosage": [{"text": f"{dose} {rest}"}],
                 }
             )
             provenance.append(
                 Provenance(
-                    resource_ref=f"MedicationRequest/{med_id}",
+                    resource_ref=f"MedicationStatement/{med_id}",
                     source_provider="pdf",
                     source_record_id=str(page_num),
                     span=_span_dict(span),
