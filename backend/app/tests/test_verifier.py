@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import pytest
 
-from backend.app.dtos import Citation, DecisionPacket, Hypothesis
+from backend.app.dtos import (
+    CategoryCompleteness,
+    Citation,
+    DecisionPacket,
+    Hypothesis,
+)
 from backend.app.reasoning.verifier import ABSTAIN_MESSAGE, DropReason, verify_packet
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
@@ -371,3 +376,42 @@ def test_drop_reason_is_frozen() -> None:
     dr = DropReason(citation_ref="X/1", reason="test")
     with pytest.raises((AttributeError, TypeError)):
         dr.citation_ref = "Y/2"  # type: ignore[misc]
+
+
+# ── completeness propagation (issue #30 / #87) ───────────────────────────────
+#
+# verify_packet rebuilds the DecisionPacket on BOTH the keep path and the
+# abstain path. The `completeness` list must survive both — it carries the
+# "unknown ≠ none" data-gap signal to the UI, so silently dropping it would make
+# a partial record look complete. These tests fail if either rebuild stops
+# copying `completeness`.
+
+_COMPLETENESS = [
+    CategoryCompleteness(category="Allergies", documented=False, gap_note="not documented"),
+    CategoryCompleteness(category="Medications", documented=True),
+]
+
+
+def test_completeness_preserved_on_keep_path() -> None:
+    hyp = _make_hyp([_resource_citation()])
+    packet = _make_packet([hyp], completeness=_COMPLETENESS)
+    result = verify_packet(
+        packet,
+        resource_lookup=_resource_returns(_GOOD_RESOURCE),
+        evidence_lookup=_evidence_returns(_GOOD_EVIDENCE),
+    )
+    assert len(result.hypotheses) == 1  # sanity: this is the keep path
+    assert result.completeness == _COMPLETENESS
+
+
+def test_completeness_preserved_on_abstain_path() -> None:
+    hyp = _make_hyp([_resource_citation("Patient/ghost-patient")])
+    packet = _make_packet([hyp], completeness=_COMPLETENESS)
+    result = verify_packet(
+        packet,
+        resource_lookup=_resource_returns(None),  # all citations unresolvable
+        evidence_lookup=_evidence_returns(None),
+    )
+    assert result.hypotheses == []  # sanity: this is the abstain path
+    assert result.summary_markdown == ABSTAIN_MESSAGE
+    assert result.completeness == _COMPLETENESS

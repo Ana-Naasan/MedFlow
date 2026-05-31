@@ -195,6 +195,23 @@ def test_build_packet_demo_001_returns_hypotheses() -> None:
     assert len(packet.completeness) >= 1
 
 
+def test_build_packet_demo_001_data_gaps_are_honest() -> None:
+    """Issue #30/#87: the demo surfaces missing categories as gaps (never 'none').
+
+    The first gap is the curated narrative-only INR note; the rest are derived
+    from the actual record + source coverage via compute_data_gaps. Absent
+    safety-critical categories (allergies, labs) MUST appear so the demo never
+    implies absence == safe.
+    """
+    packet = build_packet("DEMO-001")
+    blob = " | ".join(packet.data_gaps).lower()
+    assert any("inr" in g.lower() for g in packet.data_gaps)  # curated narrative note
+    assert "allergies" in blob  # absent allergy data surfaced, not silently "none"
+    assert "observations" in blob  # absent labs surfaced
+    # Honesty invariant: no gap line claims the patient simply has "none".
+    assert "none" not in blob
+
+
 def test_build_packet_demo_001_applies_gap_downgrade() -> None:
     """Issue #30: demo medication-citing hypotheses are downgraded one step because
     the patient record has no Allergy or Observation resources (safety-critical gaps)."""
