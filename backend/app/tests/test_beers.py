@@ -46,6 +46,26 @@ class TestBeersAgeGate:
         result = lookup_beers(["amitriptyline"], age_years=82)
         assert len(result.matches) >= 1
 
+    def test_unknown_age_none_is_not_evaluated(self) -> None:
+        # Unknown age (None) must NOT collapse to a silent "no Beers risk".
+        # It is distinct from a genuinely-young patient: age_known is False so
+        # the caller can render UNKNOWN, honouring absence = unknown.
+        result = lookup_beers(["amitriptyline"], age_years=None)
+        assert result.matches == []
+        assert result.snippets == []
+        assert result.age_known is False
+
+    def test_known_young_age_is_evaluated(self) -> None:
+        # A genuinely-young patient WAS evaluated (Beers simply does not apply),
+        # so age_known stays True — distinguishable from the unknown-age case.
+        result = lookup_beers(["amitriptyline"], age_years=50)
+        assert result.matches == []
+        assert result.age_known is True
+
+    def test_elderly_result_is_evaluated(self) -> None:
+        result = lookup_beers(["amitriptyline"], age_years=82)
+        assert result.age_known is True
+
 
 # ── Lookup behaviour ───────────────────────────────────────────────────────
 
@@ -100,6 +120,32 @@ class TestBeersLookup:
         result = lookup_beers(["amitriptyline"], age_years=70)
         for m in result.matches:
             assert m.rationale
+
+
+# ── Dose / formulation qualifier preservation ──────────────────────────────
+
+
+class TestBeersDoseQualifier:
+    """A Beers rule scoped to a dose/formulation (e.g. aspirin >325 mg/day,
+    immediate-release nifedipine) must not silently flatten to a blanket flag:
+    the qualifier is stripped only for *matching*, never lost from the output."""
+
+    def test_qualified_term_preserved_on_match(self) -> None:
+        # Seed term is "aspirin (>325 mg/day)"; the >325 mg/day threshold must
+        # survive on the match so a clinician sees the rule is dose-conditional.
+        result = lookup_beers(["aspirin"], age_years=70)
+        terms = {m.beers_term for m in result.matches}
+        assert any(">325 mg/day" in t for t in terms), terms
+
+    def test_qualifier_surfaced_in_snippet_label(self) -> None:
+        result = lookup_beers(["aspirin"], age_years=70)
+        labels = [m.snippet.label for m in result.matches]
+        assert any(">325 mg/day" in label for label in labels), labels
+
+    def test_unqualified_term_is_plain_name(self) -> None:
+        # A drug with no parenthetical qualifier keeps its bare seed term.
+        result = lookup_beers(["amitriptyline"], age_years=70)
+        assert any(m.beers_term == "amitriptyline" for m in result.matches)
 
 
 # ── Snippet shape ──────────────────────────────────────────────────────────

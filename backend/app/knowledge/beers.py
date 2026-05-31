@@ -23,6 +23,7 @@ class BeersMatch:
     rule_id: str
     category: str
     drug_name: str  # normalised patient-medication name that matched
+    beers_term: str  # original seed term, incl. dose/formulation qualifier
     recommendation: str
     rationale: str
     quality_of_evidence: str
@@ -37,23 +38,32 @@ class BeersResult:
     # just unverified — caller may want to surface coverage gaps).
     unresolved: list[str] = field(default_factory=list)
     snippets: list[EvidenceSnippet] = field(default_factory=list)
+    # False only when age was unknown (None): Beers could not be evaluated, so an
+    # empty result means "not assessed", NOT "no risk". A genuinely-young patient
+    # was assessed (Beers does not apply), so age_known stays True for them.
+    age_known: bool = True
 
 
 # ── Module-level lazy index ────────────────────────────────────────────────
 
-_INDEX: dict[str, list[dict[str, Any]]] | None = None
+_INDEX: dict[str, list[tuple[str, dict[str, Any]]]] | None = None
 
 
-def _get_index() -> dict[str, list[dict[str, Any]]]:
-    """Build and cache a normalised-name → list[rule] lookup."""
+def _get_index() -> dict[str, list[tuple[str, dict[str, Any]]]]:
+    """Build and cache a normalised-name → list[(seed_term, rule)] lookup.
+
+    The seed term is kept alongside each rule so a dose/formulation qualifier
+    (e.g. ``aspirin (>325 mg/day)``) survives into the match — ``_normalise``
+    strips it only for *matching*, never from the surfaced output.
+    """
     global _INDEX  # noqa: PLW0603
     if _INDEX is None:
         data = load_beers()
-        idx: dict[str, list[dict[str, Any]]] = {}
+        idx: dict[str, list[tuple[str, dict[str, Any]]]] = {}
         for rule in data["rules"]:
             for drug in rule["drugs"]:
                 key = _normalise(drug)
-                idx.setdefault(key, []).append(rule)
+                idx.setdefault(key, []).append((drug, rule))
         _INDEX = idx
     return _INDEX
 
@@ -69,13 +79,22 @@ def _normalise(name: str) -> str:
 # ── Public API ─────────────────────────────────────────────────────────────
 
 
-def lookup_beers(drug_names: list[str], age_years: int) -> BeersResult:
+def lookup_beers(drug_names: list[str], age_years: int | None) -> BeersResult:
     """Return Beers Criteria matches for *drug_names* in a patient aged *age_years*.
 
-    Returns an empty ``BeersResult`` immediately when ``age_years < 65``; the
-    age gate is explicit and not treated as a coverage gap (``unresolved`` stays
-    empty).
+    ``age_years`` is ``int | None`` because the upstream patient record may not
+    carry a birth date (``_compute_age_years`` returns ``None`` and the minimised
+    patient omits ``ageYears`` entirely). The two empty-result cases are kept
+    distinct so absence is never rendered as "no risk":
+
+    * ``age_years is None`` — age unknown, Beers could not be evaluated. Returns
+      ``BeersResult(age_known=False)``; the caller must surface this as UNKNOWN.
+    * ``age_years < 65`` — patient assessed; Beers does not apply. Returns an
+      empty ``BeersResult`` (``age_known=True``); the age gate is explicit and
+      not treated as a coverage gap (``unresolved`` stays empty).
     """
+    if age_years is None:
+        return BeersResult(age_known=False)
     if age_years < _MIN_AGE:
         return BeersResult()
 
@@ -88,22 +107,23 @@ def lookup_beers(drug_names: list[str], age_years: int) -> BeersResult:
 
     for med in drug_names:
         norm = _normalise(med)
-        rules = index.get(norm)
-        if rules is None:
+        entries = index.get(norm)
+        if entries is None:
             unresolved.append(med)
             continue
-        for rule in rules:
+        for term, rule in entries:
             snippet = EvidenceSnippet(
                 id=f"beers:{rule['id']}:{norm}",
                 kind="beers_criteria",
                 ref=citation,
-                label=f"Beers 2023 — {rule['category']}: {rule['recommendation']}",
+                label=f"Beers 2023 [{term}] — {rule['category']}: {rule['recommendation']}",
             )
             matches.append(
                 BeersMatch(
                     rule_id=rule["id"],
                     category=rule["category"],
                     drug_name=norm,
+                    beers_term=term,
                     recommendation=rule["recommendation"],
                     rationale=rule["rationale"],
                     quality_of_evidence=rule["quality_of_evidence"],
