@@ -16,9 +16,12 @@ import pytest
 from backend.app.providers.base import ConnectorDataError, ConnectorUnavailable
 from backend.app.providers.postgres import (
     PostgresProvider,
+    _allergy_clinical_status,
     _fetch_raw_a,
     _fetch_raw_b,
+    _iso_date,
     _observation_status,
+    _procedure_status,
     _translate_a,
     _translate_b,
     _value_quantity,
@@ -745,3 +748,359 @@ class TestMapperHelpers:
         # valid ObservationStatus → coerce to 'final'.
         assert _observation_status("active") == "final"
         assert _observation_status("STOPPED") == "final"
+
+
+# ── #67 honesty/fidelity: status value-set mappers ────────────────────────────
+
+
+class TestAllergyClinicalStatusMapper:
+    """Maps Institution B's status_flag onto the R4B clinicalStatus value set."""
+
+    def test_passes_through_valid_codes(self) -> None:
+        assert _allergy_clinical_status("active") == "active"
+        assert _allergy_clinical_status("inactive") == "inactive"
+        assert _allergy_clinical_status("resolved") == "resolved"
+
+    def test_case_insensitive_and_trims(self) -> None:
+        assert _allergy_clinical_status("  Active ") == "active"
+        assert _allergy_clinical_status("RESOLVED") == "resolved"
+
+    def test_unknown_token_defaults_active(self) -> None:
+        # We never silently drop an allergy — default to the safer 'active'
+        # rather than coercing to an invalid code.
+        assert _allergy_clinical_status("foo") == "active"
+        assert _allergy_clinical_status("") == "active"
+
+    def test_none_defaults_active(self) -> None:
+        # Mirrors Institution A's behaviour (no status column → assume active).
+        assert _allergy_clinical_status(None) == "active"
+
+
+class TestProcedureStatusMapper:
+    """Maps Institution B's status_flag onto the R4B Procedure.status value set."""
+
+    def test_passes_through_valid_codes(self) -> None:
+        for code in (
+            "preparation",
+            "in-progress",
+            "not-done",
+            "on-hold",
+            "stopped",
+            "completed",
+            "entered-in-error",
+            "unknown",
+        ):
+            assert _procedure_status(code) == code
+
+    def test_synonyms_map_to_valid_codes(self) -> None:
+        assert _procedure_status("active") == "in-progress"
+        assert _procedure_status("ongoing") == "in-progress"
+        assert _procedure_status("done") == "completed"
+        assert _procedure_status("finished") == "completed"
+        assert _procedure_status("cancelled") == "stopped"
+        assert _procedure_status("canceled") == "stopped"
+        assert _procedure_status("aborted") == "stopped"
+
+    def test_unknown_token_does_not_overstate_completed(self) -> None:
+        # The previous behaviour hard-coded 'completed' for every procedure —
+        # now unknown tokens map to 'unknown' so we don't overclaim.
+        assert _procedure_status("garbage") == "unknown"
+
+    def test_none_defaults_completed_for_a_compatibility(self) -> None:
+        # Institution A has no status column; absence preserves A's historical
+        # "everything in procedures_done is completed" assumption.
+        assert _procedure_status(None) == "completed"
+
+
+# ── #67 honesty/fidelity: birthDate normalization ────────────────────────────
+
+
+class TestIsoDateNormalizer:
+    """A's date_of_birth (asyncpg DATE → date) and B's dob (VARCHAR → str)
+    must serialise identically. _iso_date is the single source of truth."""
+
+    def test_date_object_serialises_iso(self) -> None:
+        import datetime as _dt
+
+        assert _iso_date(_dt.date(1950, 3, 15)) == "1950-03-15"
+
+    def test_datetime_object_drops_time(self) -> None:
+        import datetime as _dt
+
+        assert _iso_date(_dt.datetime(1950, 3, 15, 12, 30)) == "1950-03-15"
+
+    def test_string_passthrough_after_strip(self) -> None:
+        assert _iso_date("1950-03-15") == "1950-03-15"
+        assert _iso_date("  1950-03-15  ") == "1950-03-15"
+
+    def test_empty_string_collapses_to_none(self) -> None:
+        assert _iso_date("") is None
+        assert _iso_date("   ") is None
+
+    def test_none_is_none(self) -> None:
+        assert _iso_date(None) is None
+
+    def test_other_types_stringified(self) -> None:
+        # Defensive: a column with an unexpected type still produces a value
+        # rather than crashing the fetch.
+        assert _iso_date(19500315) == "19500315"
+
+
+def test_a_and_b_produce_birthdate_identically() -> None:
+    """A returns date_of_birth as asyncpg DATE → datetime.date; B as VARCHAR
+    → str. Both must serialise to the same ISO string after _iso_date."""
+    import datetime as _dt
+
+    res_a, _ = _translate_a(
+        {"patient_id": "X", "sex": "M", "date_of_birth": _dt.date(1950, 3, 15)},
+        {},
+    )
+    res_b, _ = _translate_b(
+        {"pt_ref": "X", "gender_code": "M", "dob": "1950-03-15"},
+        [],
+    )
+    assert res_a[0]["birthDate"] == res_b[0]["birthDate"] == "1950-03-15"
+
+
+# ── #67 tests bullet: full A==B equivalence across all 6 types ────────────────
+
+
+def test_a_and_b_produce_identical_fhir_for_all_six_types() -> None:
+    """Stronger than the per-field A==B checks: every resource type produced
+    by the two translators must be structurally equivalent (modulo per-row
+    ids, which are schema-specific) for the same clinical profile."""
+    res_a, _ = _translate_a(_IA_PATIENT, _IA_RELATED)
+    res_b, _ = _translate_b(_IB_PATIENT, _IB_EVENTS)
+
+    def _normalize(r: dict) -> dict:
+        c = dict(r)
+        # Per-row ids differ by schema; the rest of the structure must match.
+        c.pop("id", None)
+        return c
+
+    by_type_a = {r["resourceType"]: _normalize(r) for r in res_a}
+    by_type_b = {r["resourceType"]: _normalize(r) for r in res_b}
+    expected = {
+        "Patient",
+        "Condition",
+        "MedicationStatement",
+        "Observation",
+        "AllergyIntolerance",
+        "Procedure",
+    }
+    assert set(by_type_a) == expected
+    assert set(by_type_b) == expected
+    for rtype in expected:
+        assert by_type_a[rtype] == by_type_b[rtype], (
+            f"{rtype} structure differs between Institution A and Institution B:\n"
+            f"A: {by_type_a[rtype]}\nB: {by_type_b[rtype]}"
+        )
+
+
+# ── #67 honesty/fidelity: partial flag honesty ────────────────────────────────
+
+
+def test_supported_but_empty_capability_appends_warning_and_flips_partial() -> None:
+    """When the connector advertises a capability but no records come back for
+    it, the FetchResult must say so (warning + partial=True) — absence is
+    not the same as "patient has none" (issue #30/#67)."""
+
+    class _Txn:
+        async def __aenter__(self) -> _Txn:
+            return self
+
+        async def __aexit__(self, *_: Any) -> bool:
+            return False
+
+    class _Conn:
+        def transaction(self, **_: Any) -> _Txn:
+            return _Txn()
+
+        async def fetchrow(self, *_: Any):
+            return {"patient_id": _PATIENT_ID, "date_of_birth": "1950-03-15", "sex": "F"}
+
+        async def fetch(self, *_: Any) -> list:
+            return []  # No conditions, meds, labs, allergies, procedures.
+
+    class _Acquire:
+        async def __aenter__(self) -> _Conn:
+            return _Conn()
+
+        async def __aexit__(self, *_: Any) -> bool:
+            return False
+
+    class _Pool:
+        def acquire(self) -> _Acquire:
+            return _Acquire()
+
+    provider = PostgresProvider(dsn="postgresql://x", institution="a", pool=_Pool())
+    result = asyncio.run(provider.fetch_patient(_PATIENT_ID))
+
+    assert result.partial is True
+    assert any(
+        "No records returned for supported categories" in w for w in result.warnings
+    ), result.warnings
+    # And every supported-but-empty capability is named in the warning:
+    warning = next(w for w in result.warnings if "No records" in w)
+    for cap in ("allergies", "conditions", "medications", "observations", "procedures"):
+        assert cap in warning, warning
+
+
+def test_complete_fetch_appends_no_warning_and_stays_not_partial() -> None:
+    """When every supported capability returns ≥1 record, no honesty-warning
+    is added and partial stays False."""
+
+    class _Txn:
+        async def __aenter__(self) -> _Txn:
+            return self
+
+        async def __aexit__(self, *_: Any) -> bool:
+            return False
+
+    # Pre-mapped lookups so a single _Conn handles every SELECT path.
+    related = _IA_RELATED
+
+    class _Conn:
+        def transaction(self, **_: Any) -> _Txn:
+            return _Txn()
+
+        async def fetchrow(self, sql: str, *args: Any):
+            return {"patient_id": _PATIENT_ID, "date_of_birth": "1950-03-15", "sex": "F"}
+
+        async def fetch(self, sql: str, *args: Any) -> list:
+            sql_l = sql.lower()
+            if "diagnoses" in sql_l:
+                return related["diagnoses"]
+            if "prescriptions" in sql_l:
+                return related["prescriptions"]
+            if "lab_results" in sql_l:
+                return related["lab_results"]
+            if "allergies" in sql_l:
+                return related["allergies"]
+            if "procedures" in sql_l:
+                return related["procedures"]
+            return []
+
+    class _Acquire:
+        async def __aenter__(self) -> _Conn:
+            return _Conn()
+
+        async def __aexit__(self, *_: Any) -> bool:
+            return False
+
+    class _Pool:
+        def acquire(self) -> _Acquire:
+            return _Acquire()
+
+    provider = PostgresProvider(dsn="postgresql://x", institution="a", pool=_Pool())
+    result = asyncio.run(provider.fetch_patient(_PATIENT_ID))
+
+    assert result.partial is False
+    assert not any("No records returned" in w for w in result.warnings)
+    # Every supported capability reports returned=True:
+    for cap in (
+        "patient",
+        "conditions",
+        "medications",
+        "observations",
+        "allergies",
+        "procedures",
+    ):
+        assert result.coverage[cap]["returned"] is True, result.coverage
+
+
+def test_coverage_keys_track_capabilities_not_a_hardcoded_set() -> None:
+    """coverage keys derive from self.capabilities. A provider that drops a
+    capability (e.g. PROCEDURES) must NOT advertise that capability as
+    requested in the coverage dict (#67 — never claim safety from absence)."""
+
+    class _Txn:
+        async def __aenter__(self) -> _Txn:
+            return self
+
+        async def __aexit__(self, *_: Any) -> bool:
+            return False
+
+    class _Conn:
+        def transaction(self, **_: Any) -> _Txn:
+            return _Txn()
+
+        async def fetchrow(self, *_: Any):
+            return {"patient_id": _PATIENT_ID, "date_of_birth": "1950-03-15", "sex": "F"}
+
+        async def fetch(self, *_: Any) -> list:
+            return []
+
+    class _Acquire:
+        async def __aenter__(self) -> _Conn:
+            return _Conn()
+
+        async def __aexit__(self, *_: Any) -> bool:
+            return False
+
+    class _Pool:
+        def acquire(self) -> _Acquire:
+            return _Acquire()
+
+    provider = PostgresProvider(dsn="postgresql://x", institution="a", pool=_Pool())
+    # Narrow capabilities: drop ALLERGIES and PROCEDURES.
+    from backend.app.providers.base import Capability
+
+    provider.capabilities = Capability.PATIENT | Capability.CONDITIONS | Capability.MEDICATIONS
+    result = asyncio.run(provider.fetch_patient(_PATIENT_ID))
+
+    # Dropped capabilities are absent from coverage entirely (not "requested
+    # but not returned" — that would dishonestly suggest we tried).
+    assert "allergies" not in result.coverage
+    assert "procedures" not in result.coverage
+    assert set(result.coverage.keys()) == {"patient", "conditions", "medications"}
+
+
+# ── #67 robustness: _get_pool lock ────────────────────────────────────────────
+
+
+def test_get_pool_creates_pool_only_once_under_concurrency() -> None:
+    """Two concurrent fetch_patient calls on a cold provider must share the
+    same pool — without the asyncio.Lock the loser leaks its create_pool()."""
+
+    provider = PostgresProvider(dsn="postgresql://x", institution="a")
+    create_calls = {"count": 0}
+
+    async def _fake_create_pool(dsn: str, *, min_size: int, max_size: int) -> object:
+        create_calls["count"] += 1
+        # Yield to the loop so a racing coroutine can see _pool is still None.
+        await asyncio.sleep(0)
+        return object()
+
+    import sys
+    import types
+
+    fake_asyncpg = types.SimpleNamespace(create_pool=_fake_create_pool)
+    sys.modules["asyncpg"] = fake_asyncpg  # type: ignore[assignment]
+    try:
+
+        async def _race() -> None:
+            pools = await asyncio.gather(
+                provider._get_pool(),
+                provider._get_pool(),
+                provider._get_pool(),
+            )
+            assert pools[0] is pools[1] is pools[2]
+
+        asyncio.run(_race())
+    finally:
+        sys.modules.pop("asyncpg", None)
+
+    assert create_calls["count"] == 1, (
+        f"asyncpg.create_pool was called {create_calls['count']} times; "
+        "expected exactly 1 under the asyncio.Lock guard."
+    )
+
+
+def test_get_pool_returns_injected_pool_without_creating() -> None:
+    """The injected-pool fast path must NOT take the lock or import asyncpg."""
+
+    sentinel = object()
+    provider = PostgresProvider(dsn="postgresql://x", institution="a", pool=sentinel)
+    got = asyncio.run(provider._get_pool())
+    assert got is sentinel
