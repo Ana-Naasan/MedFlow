@@ -157,6 +157,8 @@ def test_dose_variants() -> None:
     # value present but unit absent → trailing space stripped
     no_unit = {"dosage": [{"doseAndRate": [{"doseQuantity": {"value": 5}}]}]}
     assert _dose(no_unit) == " 5"
+    # no structured quantity → fall back to the free-text dosage line
+    assert _dose({"dosage": [{"text": "5 mg oral daily"}]}) == " (5 mg oral daily)"
 
 
 def test_obs_value_variants() -> None:

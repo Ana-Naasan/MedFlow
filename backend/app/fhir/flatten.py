@@ -139,19 +139,28 @@ def _date(raw: str | None) -> str:
 
 
 def _dose(r: dict) -> str:
-    """Extract dose string from MedicationStatement.dosage[0].doseAndRate[0].doseQuantity."""
+    """Extract a dose string from MedicationStatement.dosage[0].
+
+    Prefers the structured ``doseAndRate[0].doseQuantity``; falls back to the
+    free-text ``dosage[0].text`` so sources that carry a raw dose/route/indication
+    line (e.g. the PDF connector) still surface their dose into the reasoning
+    context instead of having it silently dropped.
+    """
     dosages = r.get("dosage") or []
     if not dosages:
         return ""
-    dose_rates = dosages[0].get("doseAndRate") or []
-    if not dose_rates:
-        return ""
-    dq = dose_rates[0].get("doseQuantity") or {}
-    val = dq.get("value")
-    unit = dq.get("unit", "")
-    if val is None:
-        return ""
-    return f" {val} {unit}".rstrip()
+    dosage = dosages[0]
+    dose_rates = dosage.get("doseAndRate") or []
+    if dose_rates:
+        dq = dose_rates[0].get("doseQuantity") or {}
+        val = dq.get("value")
+        if val is not None:
+            unit = dq.get("unit", "")
+            return f" {val} {unit}".rstrip()
+    text = dosage.get("text")
+    if text:
+        return f" ({text})"
+    return ""
 
 
 def _obs_value(r: dict) -> str:
