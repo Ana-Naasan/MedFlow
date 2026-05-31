@@ -157,6 +157,16 @@ def test_synonym_acetaminophen_to_paracetamol() -> None:
         assert h.unsure is True
 
 
+def test_synonym_loop_skips_empty_source() -> None:
+    """Coverage: when one of input_name/name is empty, the synonym loop must
+    `continue` past the empty value and still try the other."""
+    odd = DrugResolution(input_name="", name="Aspirin", resolved=True, match_quality="exact")
+    hits = find_interactions([odd, _r("Warfarin")])
+    assert len(hits) == 1
+    assert hits[0].unsure is True
+    assert "Acetylsalicylic acid" in {hits[0].drug_a, hits[0].drug_b}
+
+
 def test_evidence_id_is_order_independent() -> None:
     """The evidence_id is the same regardless of input order."""
     a = find_interactions([_r("Amitriptyline"), _r("Bupropion")])
