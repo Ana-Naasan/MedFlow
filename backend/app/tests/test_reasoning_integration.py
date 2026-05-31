@@ -14,8 +14,8 @@ from backend.app.fhir.flatten import flatten_to_tagged_text
 from backend.app.knowledge.openfda import EvidenceSnippet
 from backend.app.reasoning.core import run_reasoning
 
-# Path to the mock_fhir snapshot
-_SNAPSHOT_PATH = Path("backend/app/seeds/mock_fhir_snapshot.json")
+# Path to the mock_fhir snapshot — resolved relative to this file
+_SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / "seeds" / "mock_fhir_snapshot.json"
 
 # Demographics for the demo patient
 _DEMO_PATIENT_ID = "patient-example"
