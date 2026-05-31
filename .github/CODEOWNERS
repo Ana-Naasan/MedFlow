@@ -1,0 +1,8 @@
+# Code ownership — auto-requests reviewers and gates merges by area.
+# A PR touching an owned path requires that owner's approval before it can merge.
+
+# Planning / GSD docs — maintained ONLY by Bader. No one else changes these.
+/.planning/ @B2707
+
+# This ownership file itself
+/.github/CODEOWNERS @B2707
