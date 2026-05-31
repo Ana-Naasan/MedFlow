@@ -1,50 +1,42 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-31T10:35:24.091Z",
-  "phase": "1-2",
-  "phase_name": "Issue-driven merge-queue (M0 done; M1 reasoning core landed; widening into M1/M2/M3)",
+  "timestamp": "2026-05-31T09:11:00-04:00",
+  "phase": "02",
+  "phase_name": "hour-6-vertical-slice-m1",
   "phase_dir": ".planning/phases/02-hour-6-vertical-slice-m1",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
   "status": "paused",
-  "context": "issue-driven PR merge-queue (no GSD phase PLAN.md by design); branch=planning",
-  "branch": "planning",
-  "commit": "0d3729b",
-  "planning_synced": true,
+  "work_context": "PR merge queue — reviewing + merging the team's green PRs to a CLEAN Claude-review PASS, one at a time (several touch the overlapping /packet path).",
   "merged_this_session": [
-    {"pr": 59, "what": "PDF connector (CONN-04) — MedicationStatement + dose-reaches-reasoning + provenance fixes", "issue": 27},
-    {"pr": 62, "what": "Claude auto-review GitHub Action", "issue": null},
-    {"pr": 70, "what": "auto-review every non-draft PR (reopened+ready_for_review triggers)", "issue": null},
-    {"pr": 63, "what": "observability (logging + partial-data helpers) + SEC-02 warning-leak fix", "issue": 33},
-    {"pr": 68, "what": "deployment — OPENFDA typo + planning-only trigger; Cloud Run LIVE", "issue": 35},
-    {"pr": 72, "what": "Gemini reasoning core + deterministic citation verifier (hardened via adversarial review)", "issue": 15},
-    {"pr": 76, "what": "demo patient + intake/hypotheses endpoints", "issue": 18},
-    {"pr": 77, "what": "cache-authoritative citation verifier safety gate", "issue": 16}
+    {"pr": 79, "issue": 75, "sha": "f17c5af", "what": "deterministic output-language guard (partial #75)"},
+    {"pr": 78, "issue": 20, "sha": "a8d85f3", "what": "RxNav name->RxCUI+ATC"},
+    {"pr": 81, "issue": 24, "sha": "3505edd", "what": "intake confirm/dismiss idempotency"},
+    {"pr": 82, "issue": 31, "sha": "2a99348", "what": "PDF citation highlighting + completeness panel"},
+    {"pr": 80, "issue": 32, "sha": "b7c615c", "what": "keyboard-usable doctor flow (fixed 2 HIGH before merge)"},
+    {"pr": 84, "issue": 30, "sha": "6f0d411", "what": "handle missing data / unknown!=none"},
+    {"pr": 86, "issue": 22, "sha": "da1cf0b", "what": "DDInter drug-interaction lookup"}
   ],
-  "ai_artifacts": [
-    ".planning/phases/02-hour-6-vertical-slice-m1/02-AI-SPEC.md (reasoning-core design/eval/guardrail contract)",
-    ".planning/phases/02-hour-6-vertical-slice-m1/02-EVAL-REVIEW.md (47/100 SIGNIFICANT GAPS)"
+  "in_flight_prs": [
+    {"pr": 92, "issue": 75, "author": "B2707", "head_branch": "feat/issue-75-wire-reasoning-into-packet", "head_sha": "5e8824f", "state": "fix pushed (local==remote verified); CI review=pending backend=pass at pause", "next": "merge on clean PASS; verify #75 closes; board Done"},
+    {"pr": 91, "issue": 73, "author": "HamzaAlsarakbi", "state": "NOT fixed yet", "finding": "HIGH: partial->clean notice never clears (FetchMetadata upserted ttl=None, never deleted); MEDIUM: duplicated 'FetchMetadata' constant in intake.py/packet.py", "next": "fix on branch, gate 100%, merge on clean PASS"},
+    {"pr": 83, "issue": 25, "author": "VMotta1", "state": "NOT fixed yet", "finding": "HIGH: committed .planning/.continue-here-reviewer.md leaks a personal email; MEDIUM: inert patient-fact chips render as interactive buttons", "next": "git rm the stray file + gitignore, fix chips + FE-02 follow-up, frontend gate green, merge on clean PASS"},
+    {"pr": 93, "issue": "87/88", "author": "B2707", "head_sha": "0476ea5", "state": "review re-running after the data_gaps revert + verifier/demo-honesty tests", "next": "merge on clean PASS; close #87/#88; board Done"},
+    {"pr": 89, "issue": 26, "author": "VMotta1", "state": "SKIP", "reason": "review=fail AND backend=fail — leave for the author"}
   ],
-  "open_prs": [
-    {"number": 79, "title": "deterministic output-language guard (mine)", "state": "OPEN — DO NOT TOUCH/MERGE. Bader said he 'already has something working on 79'; likely a duplicate. Decide with Bader whether to close it."},
-    {"number": 78, "title": "RxNav drug-name resolution (Mohammad)", "state": "OPEN — Mohammad actively finishing it. I reconciled + black/ruff-fixed and posted a punch-list (PR #78 comment): 2 F841 unused vars in test_non_dict_item_in_props_skipped + 9 uncovered lines in app/knowledge/rxnav.py (79-81 _get_client lazy-init, 109 no-candidates, 137-138 non-dict skip, 155-157 _fetch_ingredient IN-group). Lint/format already green; just coverage left."},
-    {"number": 71, "title": "old intake app (Hamza)", "state": "OPEN — SUPERSEDED by #76 (merged). Commented recommending close. Not blocking anyone."}
+  "blockers": [
+    {"description": "GitHub Claude 'review' check intermittently hangs in_progress (hung twice today)", "type": "external", "workaround": "if a review run sits >25min in_progress: gh run cancel <id> then gh run rerun <id> once"},
+    {"description": "Local bash stdout buffer drops output mid-task repeatedly this session", "type": "technical", "workaround": "write command output to /tmp and Read it; never treat an empty bash return as truth"},
+    {"description": "git reset --hard on planning reverts a tracked HANDOFF.json", "type": "technical", "workaround": "re-write + commit HANDOFF.json AFTER any reset, not before"}
   ],
-  "open_follow_up_issues": [
-    {"number": 73, "what": "surface partial-data notice into /packet response + UI (blocked on reasoning-core wiring)"},
-    {"number": 75, "what": "deterministic prose-language guard (PR #79 = first slice) + per-clause grounding + WIRE run_reasoning INTO /packet (EVAL-REVIEW #1 blocker — /packet still serves the cache/store.py stub)"},
-    {"number": 65, "what": "openFDA hardening"},
-    {"number": 66, "what": "cache->API hardening"},
-    {"number": 67, "what": "PostgresProvider hardening"}
-  ],
-  "human_actions_pending": [
-    {"action": "Decide whether to close PR #79 (Bader has his own version of the output-language guard)", "context": "avoid duplicate work", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Per-PR merge-gate: reconcile (merge planning) -> full gate on py3.12 (/tmp/umraa-py312) -> Claude deep-review/adversarial workflow for correctness-critical -> fix-forward -> admin squash-merge -> close + move Project card to Done -> reset --hard origin/planning -> doc-sync", "rationale": "user-directed; Copilot errors on most PRs so Claude is the reviewer"},
-    {"decision": "Opus for EVERY agent/workflow; code-review depth deep", "rationale": "user mandate"},
-    {"decision": "Adversarial review workflow is mandatory for correctness-critical code (connectors->FHIR, verifier, reasoning core) — it has repeatedly caught real defects 100% coverage masked", "rationale": "proven on #59 (dose drop) and #72 (5xx crash, drop-all, forged-citation, output-language)"}
+    {"decision": "Merge bar = a CLEAN review PASS, not a non-blocking CONCERNS", "rationale": "user: 'make sure everything you merge passes all of the claude review tests, not just merge anything'"},
+    {"decision": "Don't re-run the GitHub Claude reviewer's own dimensions locally; only add what it can't do", "rationale": "user: checking twice for the same things wastes time (memory: trust-github-claude-review)"},
+    {"decision": "DEMO-001 data_gaps kept as curated hand-authored strings; data-driven signal rides on the confidence downgrade + completeness list", "rationale": "#93 review Low + 'don't lie on the demo' — demo must read honestly"}
   ],
-  "blockers": [],
   "uncommitted_files": [],
-  "next_action": "Confirm with Bader: close PR #79 or keep? Then resume the queue under his merge preferences. Highest-value remaining work = #75: WIRE run_reasoning INTO /packet (it currently has NO production caller — /packet serves the static cache/store.py stub; the whole reasoning core + verifier run on zero requests). Then #78 lands when Mohammad finishes coverage; close #71.",
-  "context_notes": "MERGE PREFERENCE IS NUANCED: Bader said 'stop doing prs for now' then overrode it with 'unblock my teammates' (so I merged #76/#77). Default to NOT merging without an explicit go; unblocking teammates was a one-time authorization. PROCESS REMINDERS: coverage ONLY on py3.12; CI runs ruff+black BEFORE pytest (lint fails first); git fetch && reset --hard origin/planning after every merge; NO AI-trace watermarks ('claude' as the Action product name is fine); teammates push to PR branches mid-review (git pull before pushing); the review Action skips self-modifying-workflow PRs by design; a Projects automation occasionally re-flips a closed card to In review (re-set to Done). Cloud Run deploy is LIVE (DEPLOY_ENABLED=true) — every planning push deploys; even doc pushes redeploy (a deploy.yml paths: filter is a backlog item)."
+  "next_action": "gh pr checks 92 (write to /tmp, Read). When review resolves, read verdict via gh api .../issues/92/comments; if clean PASS + mergeable, gh pr review 92 --approve && gh pr merge 92 --squash --admin --delete-branch; capture REAL merge SHA via gh pr view 92 --json mergeCommit.",
+  "context_notes": "Local branch pr-92 == PR #92 head feat/issue-75-wire-reasoning-into-packet @ 5e8824f (local==remote verified). Fix-all-3 in progress: #92 fixed+pushed; #91/#83 still need their HIGH fixes; #93 awaiting re-review. Merge ONE AT A TIME, re-check mergeable after each (overlapping /packet code -> expect CONFLICT; rebase/merge planning into each before verifying). After each merge: git checkout planning && git fetch origin planning && git reset --hard origin/planning (then re-write HANDOFF if needed). Board: project PVT_kwHOBROmas4BZQ7B, Status field PVTSSF_lAHOBROmas4BZQ7BzhUQ0OU, Done option c81d710d. Local verification: repo-root .venv (python3.12; greenlet+aiosqlite installed). EXACT CI gate from backend/: ruff check . && black --check . && pytest -o addopts='' --cov=app/fhir --cov=app/providers --cov=app/cache --cov=app/knowledge --cov=app/reasoning --cov-fail-under=100. Run the FULL suite (no -k filter). See .continue-here.md for the blocking constraints/anti-patterns."
 }
