@@ -24,6 +24,7 @@ from backend.app.reasoning.core import (
     _get_client,
     _has_forbidden_language,
     _strip_brackets,
+    derive_confidence_tier,
     parse_gemini_response,
     run_reasoning,
     verify_citations,
@@ -479,6 +480,52 @@ class TestVerifyCitations:
         assert len(result) == 0
 
 
+# ── derive_confidence_tier (REASON-03) ─────────────────────────────────────
+
+
+class TestDeriveConfidenceTier:
+    def test_evidence_citation_is_high(self) -> None:
+        """≥1 evidence citation → Tier 1 high (direct external-evidence link)."""
+        h = Hypothesis(
+            id="h",
+            title="t",
+            why="w",
+            severity="moderate",
+            confidence="low",  # model self-report — must be overridden
+            citations=[
+                Citation(kind="resource", ref="MedicationStatement/ms-001", label="x"),
+                Citation(kind="evidence", ref="openfda:1:total", label="y"),
+            ],
+        )
+        assert derive_confidence_tier(h) == "high"
+
+    def test_resource_only_is_medium(self) -> None:
+        """Only resource citations → Tier 2 medium (no external corroboration)."""
+        h = Hypothesis(
+            id="h",
+            title="t",
+            why="w",
+            severity="moderate",
+            confidence="high",  # model self-report — must be overridden
+            citations=[
+                Citation(kind="resource", ref="MedicationStatement/ms-001", label="x"),
+            ],
+        )
+        assert derive_confidence_tier(h) == "medium"
+
+    def test_no_citations_is_low(self) -> None:
+        """No surviving citations → Tier 3 low (speculative)."""
+        h = Hypothesis(
+            id="h",
+            title="t",
+            why="w",
+            severity="moderate",
+            confidence="high",  # model self-report — must be overridden
+            citations=[],
+        )
+        assert derive_confidence_tier(h) == "low"
+
+
 class TestGetClient:
     def test_client_created_with_api_key(self) -> None:
         with patch.dict("os.environ", {"GOOGLE_GENAI_API_KEY": "test-key-123"}):
@@ -560,6 +607,8 @@ class TestRunReasoning:
         assert len(h.citations) == 2
         assert h.citations[0].kind == "resource"
         assert h.citations[1].kind == "evidence"
+        # REASON-03: model self-reported "medium", but it cites evidence → overridden to high.
+        assert h.confidence == "high"
 
     @pytest.mark.asyncio
     async def test_drops_hypothesis_with_forbidden_language(

@@ -132,3 +132,34 @@ def test_list_patients_connectors_and_refresh() -> None:
     assert connectors.status_code == 200
     assert refresh.status_code == 200
     assert refresh.headers["x-cache"] == "REFRESH"
+
+
+def test_audit_endpoint_returns_logged_events() -> None:
+    with TestClient(app) as client:
+        # A packet fetch writes a "resource_read" audit row for the DecisionPacket.
+        packet = client.get("/patients/pat-001/packet", headers=_auth_headers())
+        assert packet.status_code == 200
+
+        audit = client.get("/audit", headers=_auth_headers())
+
+    assert audit.status_code == 200
+    events = audit.json()
+    assert isinstance(events, list)
+    assert len(events) >= 1
+    first = events[0]
+    assert set(first) == {
+        "id",
+        "event_type",
+        "patient_id",
+        "resource_ref",
+        "actor",
+        "occurred_at",
+    }
+    refs = {e["resource_ref"] for e in events}
+    assert "DecisionPacket/pat-001" in refs
+
+
+def test_audit_endpoint_requires_auth() -> None:
+    with TestClient(app) as client:
+        resp = client.get("/audit")
+    assert resp.status_code == 401

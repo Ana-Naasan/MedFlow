@@ -235,6 +235,18 @@ async def list_patient_ids_from_db(session: AsyncSession) -> list[str]:
     return [row for (row,) in result]
 
 
+async def list_audit_events(session: AsyncSession, limit: int = 50) -> list[AuditEvent]:
+    """Return the most recent audit events, newest first (API-05).
+
+    Ordered by ``occurred_at`` DESC and capped at *limit* rows so the read
+    endpoint can't accidentally stream the whole immutable audit log.
+    """
+    result = await session.execute(
+        select(AuditEvent).order_by(AuditEvent.occurred_at.desc()).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def upsert_hypothesis(
     session: AsyncSession,
     *,
