@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.auth import require_dev_token
 from backend.app.cache import repo
+from backend.app.cache.models import CachedResource
 from backend.app.cache.store import (
     build_packet,
     get_evidence_card,
@@ -15,6 +16,11 @@ from backend.app.cache.store import (
     list_patient_ids,
 )
 from backend.app.config import CACHE_TTL_SECONDS
+
+# Must match backend.app.api.intake.FETCH_METADATA_TYPE — the resource_type
+# used to persist a per-patient partial-data notice (#73). Duplicated here so
+# this module doesn't import from /intake (which would create a cycle).
+_FETCH_METADATA_TYPE = "FetchMetadata"
 
 router = APIRouter(prefix="/patients", tags=["packet"], dependencies=[Depends(require_dev_token)])
 connectors_router = APIRouter(tags=["connectors"], dependencies=[Depends(require_dev_token)])
@@ -66,7 +72,44 @@ async def get_packet(
     # race with nothing cached) yields an empty body; the X-Cache: MISS header
     # signals the client to retry.
     body = row.body if row is not None else built
+    body = await _merge_partial_data_notice(db, patient_id, body)
     return {**body, "cache_status": cache_status.value}
+
+
+async def _merge_partial_data_notice(
+    db: AsyncSession, patient_id: str, body: dict[str, object]
+) -> dict[str, object]:
+    """Fold any persisted partial-data notice into the packet at response time.
+
+    The notice is the source of truth for partial-fetch state — we merge at
+    response time rather than baking it into the cached packet so a later
+    refetch (clean → partial, or partial → clean) is reflected without having
+    to invalidate the cached DecisionPacket.
+    """
+    meta = await db.get(CachedResource, (patient_id, _FETCH_METADATA_TYPE, patient_id))
+    if meta is None or not isinstance(meta.body, dict):
+        return body
+    notice = meta.body
+    missing = notice.get("missing") or []
+    warnings_ = notice.get("warnings") or []
+    extra_gaps: list[str] = []
+    for cat in missing:
+        if isinstance(cat, str) and cat:
+            extra_gaps.append(f"{cat} not returned by source")
+    for w in warnings_:
+        if isinstance(w, str) and w:
+            extra_gaps.append(w)
+    if not extra_gaps:
+        return body
+    existing = list(body.get("data_gaps") or [])
+    # Preserve order, dedupe — a second /intake on the same partial fetch
+    # mustn't accumulate duplicates if the cached packet already has them.
+    seen = set(existing)
+    for g in extra_gaps:
+        if g not in seen:
+            existing.append(g)
+            seen.add(g)
+    return {**body, "data_gaps": existing}
 
 
 @router.get("/{patient_id}/resource/{resource_type}/{resource_id}")

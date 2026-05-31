@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { CompletenessIndicator } from "../../../components/CompletenessIndicator";
+import { DataGapsBanner } from "../../../components/DataGapsBanner";
 import { SuggestionCard } from "../../../components/SuggestionCard";
 import { $api, apiClient } from "../../../lib/api";
 import type { DecisionPacket } from "../../../lib/types";
@@ -151,6 +152,7 @@ export default function ProviderPacketPage() {
   }
 
   const completeness = packet!.completeness ?? [];
+  const dataGaps = packet!.data_gaps ?? [];
 
   return (
     <main>
@@ -160,6 +162,7 @@ export default function ProviderPacketPage() {
             {actionError}
           </p>
         )}
+        <DataGapsBanner gaps={dataGaps} />
         <div className="packet-layout">
           <section className="stack" aria-label="Hypothesis review">
             {packet!.hypotheses.map((hypothesis, idx) => (
