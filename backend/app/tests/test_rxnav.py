@@ -636,26 +636,10 @@ class TestNetworkErrors:
         assert result.rxcui == "6809"
         assert result.ingredient_rxcui is None
 
-    def test_close_client(self) -> None:
-        """close_client() cleans up the instance (lines 91-93)."""
-        from backend.app.knowledge.rxnav import (
-            _client_instance,
-            _get_client as real_get_client,
-            close_client,
-        )
+    def test_close_client_noop(self) -> None:
+        """close_client() handles None gracefully (lines 92-93)."""
+        from backend.app.knowledge.rxnav import _client_instance, close_client
 
-        # Autouse fixture resets _client_instance, so it's None
         assert _client_instance is None
-        # Calling close on None is a no-op
         close_client()
-        assert _client_instance is None
-
-        # Get the real client behind its mock, exercise the init branch
-        with patch(
-            "backend.app.knowledge.rxnav._get_client",
-            side_effect=real_get_client,
-        ):
-            # Force the shared instance to be None then call close to init
-            pass
-        # After tests that mock _get_client, the shared instance is None
         assert _client_instance is None
