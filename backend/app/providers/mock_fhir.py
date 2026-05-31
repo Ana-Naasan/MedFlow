@@ -121,6 +121,8 @@ def _make_result(
     patient_id: str,
     source: str,
     warnings: list[str],
+    *,
+    partial: bool | None = None,
 ) -> FetchResult:
     entries = bundle.get("entry", [])
     provenance: list[Provenance] = []
@@ -152,7 +154,7 @@ def _make_result(
         bundle=bundle,
         source=source,
         fetched_at=datetime.now(UTC),
-        partial=bool(warnings),
+        partial=bool(warnings) if partial is None else partial,
         warnings=warnings,
         provenance=provenance,
         coverage=coverage,
@@ -273,4 +275,10 @@ class MockFHIRProvider(Provider):
             raise ConnectorDataError(
                 f"Cannot read snapshot at {self._snapshot_path}: {exc}"
             ) from exc
-        return _make_result(bundle, patient_id, self.id, warnings=["loaded from local snapshot"])
+        return _make_result(
+            bundle,
+            patient_id,
+            self.id,
+            warnings=["loaded from local snapshot"],
+            partial=False,
+        )

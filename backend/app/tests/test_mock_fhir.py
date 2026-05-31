@@ -308,6 +308,9 @@ def test_fetch_patient_reads_from_snapshot(tmp_path: Path):
     assert "Patient" in resource_types
     assert result.source == "mock-fhir"
     assert any("snapshot" in w.lower() for w in result.warnings)
+    # A complete snapshot load is NOT partial data — the informational
+    # "loaded from local snapshot" note must not flip the partial flag.
+    assert result.partial is False
     assert result.coverage["patient"]["returned"] is True
     assert result.coverage["conditions"]["returned"] is True
 
