@@ -3,12 +3,14 @@
   "phase": "1 — Foundation & Contracts (M0 Setup), ~93%",
   "timestamp": "2026-05-31",
   "branch": "planning",
-  "commit": "dff3b76",
+  "commit": "4c744fd",
   "open_prs": [
-    {"number": 55, "issue": 12, "title": "real Postgres cache", "state": "reviewed, NOT merged — reconcile with #51 stand-in cache/store.py + 100% gate on app/cache"},
-    {"number": 56, "issue": 14, "title": "openFDA drug-safety", "state": "reviewed, NOT merged — 100% gate on app/knowledge+app/reasoning"}
+    {"number": 55, "issue": 12, "title": "real Postgres cache", "state": "reviewed, NOT merged — reconcile with #51 stand-in cache/store.py + 100% gate on app/cache; M1 §22 prerequisite"},
+    {"number": 56, "issue": 14, "title": "openFDA drug-safety", "state": "reviewed, NOT merged — 100% gate on app/knowledge+app/reasoning"},
+    {"number": 58, "issue": 11, "title": "MockFHIR connector (CONN-02)", "state": "NOT yet reviewed — appeared at pause; M1 §22 prerequisite, prioritize"},
+    {"number": 59, "issue": 27, "title": "PDF connector w/ char-offset provenance (CONN-04)", "state": "NOT yet reviewed — appeared at pause; Phase 4/M3 work"}
   ],
-  "blockers": ["Awaiting Bader's go / review of the #55 cache-overlap before merging the last 2 PRs"],
-  "next_action": "Run the full review->merge flow on #55 (reconcile vs the #51 in-memory stand-in cache) then #56; then run the PHASE-BOUNDARY REVIEW GATE before advancing to Phase 2.",
-  "notes": "Repo set to squash-only this session. Measure coverage on Python 3.12 only (local 3.9 gives false ~13%). Always reset local to origin/planning after each gh pr merge before doc-sync commits."
+  "blockers": ["Awaiting Bader's go before merging the queue; he wanted to review the #55 cache-overlap vs #51 stand-in first"],
+  "next_action": "On 'go', run full review->merge flow in dependency order: #58 MockFHIR + #55 cache (reconcile vs #51 stand-in) first (M1 prerequisites), then #56 openFDA, then #59 PDF. Each: code+test+Copilot review -> approve -> squash-merge -> close. Then run the PHASE-BOUNDARY REVIEW GATE before advancing to Phase 2.",
+  "notes": "Repo is squash-only now. Measure coverage on Python 3.12 only (local 3.9 gives false ~13%). Always git reset --hard origin/planning after each gh pr merge before doc-sync commits. CI gate is --cov-fail-under=100 on fhir/providers/cache/knowledge/reasoning, so every new PR touching those must ship full coverage."
 }
