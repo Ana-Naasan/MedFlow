@@ -10,6 +10,7 @@ from backend.app.providers.base import (
     Provenance,
     Provider,
 )
+from backend.app.providers.hl7v2 import HL7v2Provider
 from backend.app.providers.registry import ConnectorNotFound, build, list_connectors, register
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "ConnectorUnavailable",
     "FetchResult",
     "HealthStatus",
+    "HL7v2Provider",
     "Provider",
     "Provenance",
     "build",
