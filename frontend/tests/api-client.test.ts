@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { $api, apiClient, bearerMiddleware } from "../lib/api/client";
-import type { components } from "../lib/api/generated";
+import type { paths } from "../lib/api/generated";
 
 describe("api client", () => {
   it("exposes GET and POST methods", () => {
@@ -9,34 +9,37 @@ describe("api client", () => {
     expect(typeof apiClient.POST).toBe("function");
   });
 
-  it("GET is typed for the packet endpoint", () => {
-    // Verifies the typed client surface includes the packet path.
-    // Calling apiClient.GET("/packet/{patient_id}", ...) would be a type error
-    // if the path isn't in the generated schema — this import proves the types exist.
-    type PacketResponse = components["schemas"]["DecisionPacket"];
-    const shape: Partial<PacketResponse> = {
-      patient_id: "pat-001",
-      summary_markdown: "## stub",
+  it("is typed for the live patient routes", () => {
+    // Verifies the regenerated typed client surface covers the live API.
+    // Each key would be a type error if the path were absent from the
+    // generated schema, so referencing them proves the types exist.
+    type PatientsGet = paths["/patients"]["get"];
+    type PacketGet = paths["/patients/{patient_id}/packet"]["get"];
+    type CitationGet = paths["/patients/{patient_id}/resource/{resource_type}/{resource_id}"]["get"];
+    type RefreshPost = paths["/patients/{patient_id}/refresh"]["post"];
+    const surface: Record<string, boolean> = {
+      patients: (null as unknown as PatientsGet) === null,
+      packet: (null as unknown as PacketGet) === null,
+      citation: (null as unknown as CitationGet) === null,
+      refresh: (null as unknown as RefreshPost) === null,
     };
-    expect(shape.patient_id).toBe("pat-001");
+    expect(Object.keys(surface)).toHaveLength(4);
   });
 
-  it("DecisionPacket schema includes hypotheses and data_gaps", () => {
-    type Hypothesis = components["schemas"]["Hypothesis"];
-    const h: Hypothesis = {
-      id: "h-1",
-      title: "test",
-      why: "because",
-      severity: "low",
-      confidence: "high",
+  it("is typed for the connectors and evidence routes", () => {
+    type ConnectorsGet = paths["/connectors"]["get"];
+    type EvidenceGet = paths["/evidence/{evidence_id}"]["get"];
+    const surface: Record<string, boolean> = {
+      connectors: (null as unknown as ConnectorsGet) === null,
+      evidence: (null as unknown as EvidenceGet) === null,
     };
-    expect(h.id).toBe("h-1");
+    expect(Object.keys(surface)).toHaveLength(2);
   });
 
-  it("Citation schema includes kind and ref", () => {
-    type Citation = components["schemas"]["Citation"];
-    const c: Citation = { kind: "evidence_card", ref: "rxnorm://1" };
-    expect(c.ref).toBe("rxnorm://1");
+  it("is typed for the health route", () => {
+    type HealthGet = paths["/health"]["get"];
+    const present = (null as unknown as HealthGet) === null;
+    expect(present).toBe(true);
   });
 });
 
