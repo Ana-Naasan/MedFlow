@@ -1,0 +1,29 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Database / local state
+*.db
+*.sqlite
+*.sqlite3

@@ -1,0 +1,58 @@
+name: backend
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pip caching turns on automatically once the scaffold (#2) adds
+      # backend/requirements.txt. Until that file exists, setup-python's built-in
+      # cache would fail the run (nothing to hash), so we pick the variant by
+      # whether the lockfile is present.
+      - name: Set up Python (no cache until requirements.txt exists)
+        if: hashFiles('backend/requirements.txt') == ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Set up Python (with pip cache)
+        if: hashFiles('backend/requirements.txt') != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Lint & test (ruff + black + pytest, coverage gate on core)
+        run: |
+          if [ ! -d backend ] || [ ! -f backend/requirements.txt ]; then
+            echo "::notice::backend not scaffolded yet — skipping (see #2)"; exit 0
+          fi
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          ruff check .
+          black --check .
+          # Coverage gate on the correctness-critical core (two-tier rigor bar):
+          # FHIR subset/flattener/refs, connectors, cache, knowledge joins, and the
+          # reasoning core must stay fully covered. Polish/wiring (api, dtos, main)
+          # is not gated here. Held at 100% — drop only with a documented reason.
+          pytest \
+            --cov=app/fhir \
+            --cov=app/providers \
+            --cov=app/cache \
+            --cov=app/knowledge \
+            --cov=app/reasoning \
+            --cov-report=term-missing \
+            --cov-fail-under=100

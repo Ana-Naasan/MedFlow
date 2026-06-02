@@ -1,0 +1,955 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Umraa API",
+    "description": "Polypharmacy decision packet API.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients": {
+      "get": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Get Patients",
+        "operationId": "get_patients_patients_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Patients Patients Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/patients/{patient_id}/packet": {
+      "get": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Get Packet",
+        "operationId": "get_packet_patients__patient_id__packet_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionPacket"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patient_id}/resource/{resource_type}/{resource_id}": {
+      "get": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Get Patient Citation",
+        "operationId": "get_patient_citation_patients__patient_id__resource__resource_type___resource_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Type"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Patient Citation Patients  Patient Id  Resource  Resource Type   Resource Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patient_id}/refresh": {
+      "post": {
+        "tags": [
+          "packet"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_patients__patient_id__refresh_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Refresh Patients  Patient Id  Refresh Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connectors": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Get Connectors",
+        "operationId": "get_connectors_connectors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectorStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Connectors Connectors Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/evidence/{evidence_id}": {
+      "get": {
+        "tags": [
+          "evidence"
+        ],
+        "summary": "Get Evidence",
+        "operationId": "get_evidence_evidence__evidence_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evidence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Evidence Evidence  Evidence Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Get Audit",
+        "description": "Read the immutable audit log, newest first (API-05).",
+        "operationId": "get_audit_audit_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Audit Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/intake": {
+      "post": {
+        "tags": [
+          "intake"
+        ],
+        "summary": "Post Intake",
+        "operationId": "post_intake_intake_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntakeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/hypotheses/{id}/confirm": {
+      "post": {
+        "tags": [
+          "hypotheses"
+        ],
+        "summary": "Confirm Hypothesis",
+        "operationId": "confirm_hypothesis_hypotheses__id__confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HypothesisActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HypothesisConfirmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hypotheses/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "hypotheses"
+        ],
+        "summary": "Dismiss Hypothesis",
+        "operationId": "dismiss_hypothesis_hypotheses__id__dismiss_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HypothesisActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HypothesisDismissResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CategoryCompleteness": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Clinical data category, e.g. Medications."
+          },
+          "documented": {
+            "type": "boolean",
+            "title": "Documented",
+            "description": "True if the category has documented data."
+          },
+          "gap_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Note",
+            "description": "Clinician to-do when not documented."
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "documented"
+        ],
+        "title": "CategoryCompleteness"
+      },
+      "Citation": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "Citation type, such as resource or evidence card."
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref",
+            "description": "Resolvable citation target."
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Display label for the citation."
+          },
+          "source_span": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Span"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PDF source span for a resource citation, enabling the highlight view."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "Citation"
+      },
+      "ConnectorStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Registry connector name, e.g. 'mock-fhir', 'institution-a'."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Provider implementation class name."
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities",
+            "description": "Supported Capability names, e.g. ['PATIENT', ...]."
+          },
+          "health": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "down"
+            ],
+            "title": "Health",
+            "description": "Live health-check result."
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "description": "Health-probe latency; sentinel on failure paths."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "health",
+          "latency_ms"
+        ],
+        "title": "ConnectorStatus",
+        "description": "One registered connector with a live health probe (GET /connectors, API-05)."
+      },
+      "DecisionPacket": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "summary_markdown": {
+            "type": "string",
+            "title": "Summary Markdown"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/Hypothesis"
+            },
+            "type": "array",
+            "title": "Hypotheses"
+          },
+          "data_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Gaps"
+          },
+          "completeness": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCompleteness"
+            },
+            "type": "array",
+            "title": "Completeness"
+          },
+          "cache_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id",
+          "summary_markdown"
+        ],
+        "title": "DecisionPacket"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Hypothesis": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group",
+            "description": "Stable cross-reference key for dismiss-similar."
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "why",
+          "severity",
+          "confidence"
+        ],
+        "title": "Hypothesis"
+      },
+      "HypothesisActionRequest": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id"
+        ],
+        "title": "HypothesisActionRequest"
+      },
+      "HypothesisConfirmResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "HypothesisConfirmResponse"
+      },
+      "HypothesisDismissResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "dismissed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dismissed Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "dismissed_ids"
+        ],
+        "title": "HypothesisDismissResponse"
+      },
+      "IntakeRequest": {
+        "properties": {
+          "connector": {
+            "type": "string",
+            "title": "Connector",
+            "description": "Registered connector ID, e.g. 'mock-fhir'."
+          },
+          "source_patient_id": {
+            "type": "string",
+            "title": "Source Patient Id",
+            "description": "Patient ID as known to the source connector."
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id",
+            "description": "Override the stored patient ID; auto-generated UUID if omitted."
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector",
+          "source_patient_id"
+        ],
+        "title": "IntakeRequest"
+      },
+      "IntakeResponse": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "resource_count": {
+            "type": "integer",
+            "title": "Resource Count"
+          },
+          "hypothesis_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hypothesis Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id",
+          "status",
+          "resource_count"
+        ],
+        "title": "IntakeResponse"
+      },
+      "Span": {
+        "properties": {
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "1-based PDF page the snippet was extracted from."
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start",
+            "description": "Character offset where the snippet begins on the page."
+          },
+          "end": {
+            "type": "integer",
+            "title": "End",
+            "description": "Character offset where the snippet ends on the page."
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "description": "Exact source text at [start:end] for the highlight."
+          }
+        },
+        "type": "object",
+        "required": [
+          "page",
+          "start",
+          "end",
+          "snippet"
+        ],
+        "title": "Span"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

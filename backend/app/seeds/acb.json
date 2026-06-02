@@ -1,0 +1,378 @@
+{
+  "source": "Anticholinergic Cognitive Burden (ACB) Scale",
+  "citation": "Carnahan RM, Lund BC, Perry PJ, Pollock BG, Culp KR. The Anticholinergic Drug Scale as a Measure of Drug-Related Anticholinergic Burden: Associations with Serum Anticholinergic Activity. J Clin Pharmacol. 2006;46(12):1481-1486. https://doi.org/10.1177/0091270006292126",
+  "retrieved": "2026-05-31",
+  "notes": "ACB score: 1 = possible anticholinergic; 2 = clinically relevant; 3 = markedly anticholinergic. Higher score = greater cognitive burden risk. RxCUIs are advisory (ingredient-level, re-derived from RxNav 2026-05-31); ACB lookups key on drug name.",
+  "drugs": [
+    {
+      "name": "amitriptyline",
+      "rxcui": "704",
+      "acb_score": 3
+    },
+    {
+      "name": "atropine",
+      "rxcui": "1223",
+      "acb_score": 3
+    },
+    {
+      "name": "benztropine",
+      "rxcui": "1424",
+      "acb_score": 3
+    },
+    {
+      "name": "carisoprodol",
+      "rxcui": "2101",
+      "acb_score": 3
+    },
+    {
+      "name": "chlorpheniramine",
+      "rxcui": "2400",
+      "acb_score": 3
+    },
+    {
+      "name": "chlorpromazine",
+      "rxcui": "2403",
+      "acb_score": 3
+    },
+    {
+      "name": "clemastine",
+      "rxcui": "2578",
+      "acb_score": 3
+    },
+    {
+      "name": "clomipramine",
+      "rxcui": "2597",
+      "acb_score": 3
+    },
+    {
+      "name": "clozapine",
+      "rxcui": "2626",
+      "acb_score": 3
+    },
+    {
+      "name": "cyclobenzaprine",
+      "rxcui": "21949",
+      "acb_score": 3
+    },
+    {
+      "name": "cyproheptadine",
+      "rxcui": "3013",
+      "acb_score": 3
+    },
+    {
+      "name": "desipramine",
+      "rxcui": "3247",
+      "acb_score": 3
+    },
+    {
+      "name": "dicyclomine",
+      "rxcui": "3361",
+      "acb_score": 3
+    },
+    {
+      "name": "diphenhydramine",
+      "rxcui": "3498",
+      "acb_score": 3
+    },
+    {
+      "name": "doxepin",
+      "rxcui": "3638",
+      "acb_score": 3
+    },
+    {
+      "name": "flavoxate",
+      "rxcui": "4440",
+      "acb_score": 3
+    },
+    {
+      "name": "hydroxyzine",
+      "rxcui": "5553",
+      "acb_score": 3
+    },
+    {
+      "name": "hyoscyamine",
+      "rxcui": "153970",
+      "acb_score": 3
+    },
+    {
+      "name": "imipramine",
+      "rxcui": "5691",
+      "acb_score": 3
+    },
+    {
+      "name": "meclizine",
+      "rxcui": "6676",
+      "acb_score": 3
+    },
+    {
+      "name": "olanzapine",
+      "rxcui": "61381",
+      "acb_score": 3
+    },
+    {
+      "name": "orphenadrine",
+      "rxcui": "7715",
+      "acb_score": 3
+    },
+    {
+      "name": "oxybutynin",
+      "rxcui": "32675",
+      "acb_score": 3
+    },
+    {
+      "name": "paroxetine",
+      "rxcui": "32937",
+      "acb_score": 3
+    },
+    {
+      "name": "perphenazine",
+      "rxcui": "8076",
+      "acb_score": 3
+    },
+    {
+      "name": "promethazine",
+      "rxcui": "8745",
+      "acb_score": 3
+    },
+    {
+      "name": "propantheline",
+      "rxcui": "8761",
+      "acb_score": 3
+    },
+    {
+      "name": "propiverine",
+      "rxcui": "55175",
+      "acb_score": 3
+    },
+    {
+      "name": "scopolamine",
+      "rxcui": "9601",
+      "acb_score": 3
+    },
+    {
+      "name": "solifenacin",
+      "rxcui": "322167",
+      "acb_score": 3
+    },
+    {
+      "name": "thioridazine",
+      "rxcui": "10502",
+      "acb_score": 3
+    },
+    {
+      "name": "tizanidine",
+      "rxcui": "57258",
+      "acb_score": 3
+    },
+    {
+      "name": "tolterodine",
+      "rxcui": "119565",
+      "acb_score": 3
+    },
+    {
+      "name": "trihexyphenidyl",
+      "rxcui": "10811",
+      "acb_score": 3
+    },
+    {
+      "name": "trimipramine",
+      "rxcui": "10834",
+      "acb_score": 3
+    },
+    {
+      "name": "trospium",
+      "rxcui": "236778",
+      "acb_score": 3
+    },
+    {
+      "name": "atenolol",
+      "rxcui": "1202",
+      "acb_score": 2
+    },
+    {
+      "name": "bumetanide",
+      "rxcui": "1808",
+      "acb_score": 2
+    },
+    {
+      "name": "carbamazepine",
+      "rxcui": "2002",
+      "acb_score": 2
+    },
+    {
+      "name": "codeine",
+      "rxcui": "2670",
+      "acb_score": 2
+    },
+    {
+      "name": "colchicine",
+      "rxcui": "2683",
+      "acb_score": 2
+    },
+    {
+      "name": "digoxin",
+      "rxcui": "3407",
+      "acb_score": 2
+    },
+    {
+      "name": "furosemide",
+      "rxcui": "4603",
+      "acb_score": 2
+    },
+    {
+      "name": "hydralazine",
+      "rxcui": "5470",
+      "acb_score": 2
+    },
+    {
+      "name": "isosorbide",
+      "rxcui": "6057",
+      "acb_score": 2
+    },
+    {
+      "name": "morphine",
+      "rxcui": "7052",
+      "acb_score": 2
+    },
+    {
+      "name": "nifedipine",
+      "rxcui": "7417",
+      "acb_score": 2
+    },
+    {
+      "name": "pindolol",
+      "rxcui": "8332",
+      "acb_score": 2
+    },
+    {
+      "name": "prednisone",
+      "rxcui": "8640",
+      "acb_score": 2
+    },
+    {
+      "name": "theophylline",
+      "rxcui": "10438",
+      "acb_score": 2
+    },
+    {
+      "name": "triamterene",
+      "rxcui": "10763",
+      "acb_score": 2
+    },
+    {
+      "name": "warfarin",
+      "rxcui": "11289",
+      "acb_score": 2
+    },
+    {
+      "name": "alprazolam",
+      "rxcui": "596",
+      "acb_score": 1
+    },
+    {
+      "name": "amlodipine",
+      "rxcui": "17767",
+      "acb_score": 1
+    },
+    {
+      "name": "captopril",
+      "rxcui": "1998",
+      "acb_score": 1
+    },
+    {
+      "name": "cetirizine",
+      "rxcui": "20610",
+      "acb_score": 1
+    },
+    {
+      "name": "chlorthalidone",
+      "rxcui": "2409",
+      "acb_score": 1
+    },
+    {
+      "name": "cimetidine",
+      "rxcui": "2541",
+      "acb_score": 1
+    },
+    {
+      "name": "diazepam",
+      "rxcui": "3322",
+      "acb_score": 1
+    },
+    {
+      "name": "diltiazem",
+      "rxcui": "3443",
+      "acb_score": 1
+    },
+    {
+      "name": "enalapril",
+      "rxcui": "3827",
+      "acb_score": 1
+    },
+    {
+      "name": "fluvoxamine",
+      "rxcui": "42355",
+      "acb_score": 1
+    },
+    {
+      "name": "haloperidol",
+      "rxcui": "5093",
+      "acb_score": 1
+    },
+    {
+      "name": "loratadine",
+      "rxcui": "28889",
+      "acb_score": 1
+    },
+    {
+      "name": "metoprolol",
+      "rxcui": "6918",
+      "acb_score": 1
+    },
+    {
+      "name": "nortriptyline",
+      "rxcui": "7531",
+      "acb_score": 1
+    },
+    {
+      "name": "prochlorperazine",
+      "rxcui": "8704",
+      "acb_score": 1
+    },
+    {
+      "name": "quetiapine",
+      "rxcui": "51272",
+      "acb_score": 1
+    },
+    {
+      "name": "ranitidine",
+      "rxcui": "9143",
+      "acb_score": 1
+    },
+    {
+      "name": "risperidone",
+      "rxcui": "35636",
+      "acb_score": 1
+    },
+    {
+      "name": "sertraline",
+      "rxcui": "36437",
+      "acb_score": 1
+    },
+    {
+      "name": "temazepam",
+      "rxcui": "10355",
+      "acb_score": 1
+    },
+    {
+      "name": "trazodone",
+      "rxcui": "10737",
+      "acb_score": 1
+    },
+    {
+      "name": "verapamil",
+      "rxcui": "11170",
+      "acb_score": 1
+    }
+  ]
+}

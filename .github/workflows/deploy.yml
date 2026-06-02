@@ -1,0 +1,128 @@
+name: deploy
+
+# Runs ONLY on merges to main. PRs/feature branches keep running just the
+# test workflows (backend.yml / frontend.yml) — this never runs on them.
+#
+# DORMANT until you opt in: the job is skipped unless repo variable
+# DEPLOY_ENABLED == 'true'. Flip it on after the GCP setup in docs/DEPLOY.md
+# (and once the Docker images are confirmed to build).
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+
+jobs:
+  build-and-deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to GHCR with the built-in GITHUB_TOKEN
+    env:
+      GHCR_BASE: ghcr.io/${{ github.repository_owner }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      BACKEND_SERVICE: umraa-backend
+      FRONTEND_SERVICE: umraa-frontend
+      GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
+      OPENFDA_API_KEY: ${{ secrets.OPENFDA_API_KEY }}
+      DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR needs a lowercase owner in the image path.
+      - name: Compute image refs
+        id: img
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          sha="${GITHUB_SHA::7}"
+          echo "backend=ghcr.io/$owner/umraa-backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=ghcr.io/$owner/umraa-frontend" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push backend → GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.img.outputs.backend }}:${{ steps.img.outputs.sha }}
+            ${{ steps.img.outputs.backend }}:latest
+
+      - name: Build & push frontend → GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000' }}
+            NEXT_PUBLIC_API_TOKEN=${{ secrets.DEV_TOKEN }}
+          tags: |
+            ${{ steps.img.outputs.frontend }}:${{ steps.img.outputs.sha }}
+            ${{ steps.img.outputs.frontend }}:latest
+
+      # ---- Cloud Run deploy: only if GCP secrets are configured ----
+      - name: Authenticate to Google Cloud
+        if: ${{ env.GCP_SA_KEY != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        if: ${{ env.GCP_SA_KEY != '' }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Mirror images GHCR → Artifact Registry (Cloud Run pulls from AR)
+        if: ${{ env.GCP_SA_KEY != '' }}
+        run: |
+          AR_HOST="${GCP_REGION}-docker.pkg.dev"
+          AR_BASE="${AR_HOST}/${GCP_PROJECT_ID}/umraa"
+          gcloud auth configure-docker "$AR_HOST" --quiet
+          SHA="${{ steps.img.outputs.sha }}"
+          # Copy manifests from GHCR to AR without rebuilding.
+          docker buildx imagetools create --tag "$AR_BASE/umraa-backend:$SHA"  "${{ steps.img.outputs.backend }}:$SHA"
+          docker buildx imagetools create --tag "$AR_BASE/umraa-frontend:$SHA" "${{ steps.img.outputs.frontend }}:$SHA"
+          echo "AR_BASE=$AR_BASE" >> "$GITHUB_ENV"
+
+      - name: Deploy backend to Cloud Run
+        if: ${{ env.GCP_SA_KEY != '' }}
+        run: |
+          gcloud run deploy "$BACKEND_SERVICE" \
+            --image "$AR_BASE/umraa-backend:${{ steps.img.outputs.sha }}" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --platform managed --allow-unauthenticated --port 8080 \
+            --set-env-vars "GOOGLE_GENAI_API_KEY=$GOOGLE_GENAI_API_KEY,OPENFDA_API_KEY=$OPENFDA_API_KEY,DEV_TOKEN=$DEV_TOKEN"
+          # Route 100% of traffic to the just-deployed revision (the service may have
+          # traffic pinned to a prior revision, which would leave a new deploy at 0%).
+          gcloud run services update-traffic "$BACKEND_SERVICE" --to-latest \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --platform managed
+
+      - name: Deploy frontend to Cloud Run
+        if: ${{ env.GCP_SA_KEY != '' }}
+        run: |
+          gcloud run deploy "$FRONTEND_SERVICE" \
+            --image "$AR_BASE/umraa-frontend:${{ steps.img.outputs.sha }}" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --platform managed --allow-unauthenticated --port 8080 \
+            --set-env-vars "AUTH_SECRET=$AUTH_SECRET,AUTH_TRUST_HOST=true"
+          gcloud run services update-traffic "$FRONTEND_SERVICE" --to-latest \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --platform managed
+
+      - name: Skipped Cloud Run (GCP not configured)
+        if: ${{ env.GCP_SA_KEY == '' }}
+        run: echo "::notice::Images pushed to GHCR. Cloud Run deploy skipped — set GCP_SA_KEY / GCP_PROJECT_ID secrets (see docs/DEPLOY.md)."

@@ -1,0 +1,82 @@
+services:
+  app_db:
+    image: postgres:16-alpine
+    container_name: umraa-app-db
+    environment:
+      POSTGRES_DB: ${APP_DB_NAME:-umraa_app}
+      POSTGRES_USER: ${APP_DB_USER:-umraa}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:-umraa}
+    ports:
+      - "5432:5432"
+    volumes:
+      - app_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER:-umraa} -d ${APP_DB_NAME:-umraa_app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  institution_a:
+    image: postgres:16-alpine
+    container_name: umraa-institution-a
+    environment:
+      POSTGRES_DB: ${INSTITUTION_A_NAME:-institution_a}
+      POSTGRES_USER: ${INSTITUTION_A_USER:-umraa}
+      POSTGRES_PASSWORD: ${INSTITUTION_A_PASSWORD:-umraa}
+    ports:
+      - "5433:5432"
+    volumes:
+      - institution_a_data:/var/lib/postgresql/data
+      - ./backend/app/seeds/institution_a.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INSTITUTION_A_USER:-umraa} -d ${INSTITUTION_A_NAME:-institution_a}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  institution_b:
+    image: postgres:16-alpine
+    container_name: umraa-institution-b
+    environment:
+      POSTGRES_DB: ${INSTITUTION_B_NAME:-institution_b}
+      POSTGRES_USER: ${INSTITUTION_B_USER:-umraa}
+      POSTGRES_PASSWORD: ${INSTITUTION_B_PASSWORD:-umraa}
+    ports:
+      - "5434:5432"
+    volumes:
+      - institution_b_data:/var/lib/postgresql/data
+      - ./backend/app/seeds/institution_b.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INSTITUTION_B_USER:-umraa} -d ${INSTITUTION_B_NAME:-institution_b}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: umraa-backend
+    env_file: .env
+    environment:
+      # Reach the institution Postgres services by their compose-network DNS names.
+      # The localhost:5433/5434 defaults in config.py are for a bare-host `uvicorn`
+      # (the 5433:5432 / 5434:5432 host-port mappings); inside this compose network the
+      # backend must use the service name + the in-container port 5432. These override
+      # env_file so the seeded institution connectors are actually reachable.
+      INSTITUTION_A_DSN: postgresql://umraa_reader:umraa_reader@institution_a:5432/institution_a
+      INSTITUTION_B_DSN: postgresql://umraa_reader:umraa_reader@institution_b:5432/institution_b
+    ports:
+      - "${APP_PORT:-8000}:8080"
+    depends_on:
+      app_db:
+        condition: service_healthy
+      institution_a:
+        condition: service_healthy
+      institution_b:
+        condition: service_healthy
+
+volumes:
+  app_db_data:
+  institution_a_data:
+  institution_b_data:

@@ -1,0 +1,10 @@
+# Code ownership — auto-requests reviewers and gates merges by area.
+# A PR touching an owned path requires that owner's approval before it can merge.
+
+# Default owner for everything in the repo.
+*               @B2707
+
+# Core areas (explicit for clarity).
+/backend/       @B2707
+/frontend/      @B2707
+/.github/       @B2707

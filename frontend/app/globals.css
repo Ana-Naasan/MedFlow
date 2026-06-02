@@ -1,0 +1,364 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens — shared patient + clinician */
+:root {
+  /* Core palette */
+  --mf-paper: #f6f4ee;
+  --mf-paper-2: #efece3;
+  --mf-ink: #2c2b27;
+  --mf-ink-soft: #76746c;
+  --mf-accent: oklch(0.60 0.072 215);
+  --mf-accent-soft: oklch(0.95 0.022 215);
+  --mf-patient: oklch(0.90 0.045 65);
+  --mf-patient-line: oklch(0.66 0.09 60);
+  --mf-clinician: oklch(0.92 0.03 215);
+  --mf-clinician-line: oklch(0.58 0.07 220);
+  --mf-warm-tint: oklch(0.96 0.02 65);
+  --mf-success: oklch(0.55 0.12 145);
+
+  /* Surfaces — mapped to MedFlow palette */
+  --background: var(--mf-paper);
+  --bg-surface: var(--mf-paper);
+  --bg-subtle: var(--mf-paper-2);
+
+  /* Borders */
+  --border: color-mix(in oklch, var(--mf-ink) 18%, var(--mf-paper-2));
+  --input: color-mix(in oklch, var(--mf-ink) 22%, var(--mf-paper-2));
+
+  /* Text */
+  --foreground: var(--mf-ink);
+  --text-secondary: var(--mf-ink-soft);
+  --text-muted: var(--mf-ink-soft);
+
+  /* Brand */
+  --primary: var(--mf-accent);
+  --primary-foreground: #ffffff;
+  --accent: var(--mf-accent);
+  --accent-hover: oklch(0.52 0.08 215);
+  --accent-foreground: #ffffff;
+
+  /* Semantic */
+  --success: var(--mf-success);
+  --warning: oklch(0.75 0.15 75);
+  --danger: oklch(0.55 0.2 25);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+
+  /* Components */
+  --card: var(--mf-paper);
+  --card-foreground: var(--mf-ink);
+  --popover: var(--mf-paper);
+  --popover-foreground: var(--mf-ink);
+  --secondary: var(--mf-paper-2);
+  --secondary-foreground: var(--mf-ink);
+  --muted: var(--mf-paper-2);
+  --muted-foreground: var(--mf-ink-soft);
+  --ring: var(--mf-accent);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(44, 43, 39, 0.06);
+  --shadow-md: 0 4px 12px rgba(44, 43, 39, 0.08);
+
+  /* Radius */
+  --radius: 0.5rem;
+
+  /* Sidebar */
+  --sidebar: var(--mf-paper);
+  --sidebar-foreground: var(--mf-ink);
+  --sidebar-primary: var(--mf-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--mf-clinician);
+  --sidebar-accent-foreground: var(--mf-ink);
+  --sidebar-border: color-mix(in oklch, var(--mf-ink) 18%, var(--mf-paper-2));
+  --sidebar-ring: var(--mf-accent);
+
+  /* Charts */
+  --chart-1: var(--mf-accent);
+  --chart-2: var(--mf-success);
+  --chart-3: var(--warning);
+  --chart-4: oklch(0.55 0.12 280);
+  --chart-5: oklch(0.65 0.15 15);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-mf-body), var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-mf-display), Georgia, serif;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* IBM Plex Mono for clinical data */
+.font-mono {
+  font-family: var(--font-mono), 'Courier New', monospace;
+}
+
+/* Focus ring — 2px accent, 2px offset */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+}
+
+/* Status badge base */
+.badge-pill {
+  @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+/* Table row hover with left accent border */
+.table-row-hover {
+  @apply hover:bg-bg-subtle relative;
+}
+.table-row-hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 150ms ease;
+}
+.table-row-hover:hover::before {
+  background: var(--mf-accent);
+}
+
+/* Clinical surface cards (dashboard) */
+.mf-surface-card {
+  border: 2px solid color-mix(in oklch, var(--mf-ink) 18%, var(--mf-paper-2));
+  border-radius: 10px;
+  background: var(--mf-paper);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── MedFlow marketing / patient surfaces ─────────────────────────────────── */
+
+.mf-body {
+  background-color: var(--mf-paper);
+  color: var(--mf-ink);
+  font-family: var(--font-mf-body), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.mf-display {
+  font-family: var(--font-mf-display), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+/* Logo + wordmark alignment */
+.mf-brand-lockup {
+  vertical-align: middle;
+}
+
+.mf-brand-lockup svg {
+  display: block;
+}
+
+.mf-eyebrow {
+  font-family: var(--font-mono), "Courier New", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mf-accent);
+}
+
+.mf-btn-primary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  font-family: var(--font-mf-display), Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--mf-accent);
+  border: 2px solid var(--mf-ink);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.mf-btn-primary:hover {
+  opacity: 0.92;
+}
+
+.mf-btn-primary:focus-visible {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 2px;
+}
+
+.mf-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mf-btn-secondary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  font-family: var(--font-mf-display), Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--mf-ink);
+  background: var(--mf-paper);
+  border: 2px solid var(--mf-ink);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.mf-btn-secondary:hover {
+  background: var(--mf-paper-2);
+}
+
+.mf-icon-btn {
+  display: inline-flex;
+  min-height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--mf-ink);
+  border-radius: 8px;
+  background: var(--mf-paper);
+  color: var(--mf-ink-soft);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.mf-icon-btn:hover {
+  background: var(--mf-paper-2);
+  color: var(--mf-ink);
+}
+
+.mf-icon-btn:focus-visible {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 2px;
+}
+
+.mf-btn-secondary:focus-visible {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 2px;
+}
+
+.mf-card-selectable {
+  border: 2px solid var(--mf-ink);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--mf-paper);
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease, box-shadow 150ms ease;
+  min-height: 44px;
+}
+
+.mf-card-selectable:focus-visible {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 2px;
+}
+
+.mf-card-selectable[data-selected="true"] {
+  background: var(--mf-accent-soft);
+  border-color: var(--mf-accent);
+  box-shadow: 0 0 0 1px var(--mf-accent);
+}
+
+.mf-chip {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 2px solid var(--mf-ink);
+  border-radius: 999px;
+  background: var(--mf-paper);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.mf-chip[data-selected="true"] {
+  background: var(--mf-accent-soft);
+  border-color: var(--mf-accent);
+}
+
+.mf-chip:focus-visible {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 2px;
+}
+
+/* Clinician shell — cool-blue accent for nav active states */
+.mf-clinical aside [aria-current="page"] {
+  background: var(--mf-clinician) !important;
+  border-left-color: var(--mf-clinician-line) !important;
+  color: var(--mf-ink) !important;
+}

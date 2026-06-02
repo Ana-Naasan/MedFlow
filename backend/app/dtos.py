@@ -1,0 +1,101 @@
+from dataclasses import dataclass
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+@dataclass
+class EvidenceSnippet:
+    """Single evidence item with a stable, deterministic ID."""
+
+    id: str
+    kind: str
+    ref: str
+    label: str
+
+
+class Span(BaseModel):
+    page: int = Field(..., description="1-based PDF page the snippet was extracted from.")
+    start: int = Field(..., description="Character offset where the snippet begins on the page.")
+    end: int = Field(..., description="Character offset where the snippet ends on the page.")
+    snippet: str = Field(..., description="Exact source text at [start:end] for the highlight.")
+
+
+class Citation(BaseModel):
+    kind: str = Field(..., description="Citation type, such as resource or evidence card.")
+    ref: str = Field(..., description="Resolvable citation target.")
+    label: str | None = Field(default=None, description="Display label for the citation.")
+    source_span: Span | None = Field(
+        default=None,
+        description="PDF source span for a resource citation, enabling the highlight view.",
+    )
+
+
+class CategoryCompleteness(BaseModel):
+    category: str = Field(..., description="Clinical data category, e.g. Medications.")
+    documented: bool = Field(..., description="True if the category has documented data.")
+    gap_note: str | None = Field(default=None, description="Clinician to-do when not documented.")
+
+
+class Hypothesis(BaseModel):
+    id: str
+    title: str
+    why: str
+    severity: str
+    confidence: str
+    group: str | None = Field(
+        default=None, description="Stable cross-reference key for dismiss-similar."
+    )
+    citations: list[Citation] = Field(default_factory=list)
+
+
+class DecisionPacket(BaseModel):
+    patient_id: str
+    summary_markdown: str
+    hypotheses: list[Hypothesis] = Field(default_factory=list)
+    data_gaps: list[str] = Field(default_factory=list)
+    completeness: list[CategoryCompleteness] = Field(default_factory=list)
+    cache_status: str | None = None
+
+
+class ConnectorStatus(BaseModel):
+    """One registered connector with a live health probe (GET /connectors, API-05)."""
+
+    id: str = Field(..., description="Registry connector name, e.g. 'mock-fhir', 'institution-a'.")
+    name: str = Field(..., description="Provider implementation class name.")
+    capabilities: list[str] = Field(
+        default_factory=list, description="Supported Capability names, e.g. ['PATIENT', ...]."
+    )
+    health: Literal["ok", "down"] = Field(..., description="Live health-check result.")
+    latency_ms: float = Field(..., description="Health-probe latency; sentinel on failure paths.")
+
+
+class IntakeRequest(BaseModel):
+    connector: str = Field(..., description="Registered connector ID, e.g. 'mock-fhir'.")
+    source_patient_id: str = Field(..., description="Patient ID as known to the source connector.")
+    patient_id: str | None = Field(
+        default=None,
+        description="Override the stored patient ID; auto-generated UUID if omitted.",
+    )
+
+
+class IntakeResponse(BaseModel):
+    patient_id: str
+    status: str
+    resource_count: int
+    hypothesis_ids: list[str] = Field(default_factory=list)
+
+
+class HypothesisActionRequest(BaseModel):
+    patient_id: str
+
+
+class HypothesisConfirmResponse(BaseModel):
+    id: str
+    status: str
+
+
+class HypothesisDismissResponse(BaseModel):
+    id: str
+    status: str
+    dismissed_ids: list[str]
