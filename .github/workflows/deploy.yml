@@ -1,6 +1,6 @@
 name: deploy
 
-# Runs ONLY on merges to main. PRs/feature branches keep running just the
+# Runs on pushes to main (production) or staging (review). PRs/feature branches keep running just the
 # test workflows (backend.yml / frontend.yml) — this never runs on them.
 #
 # DORMANT until you opt in: the job is skipped unless repo variable
@@ -8,7 +8,7 @@ name: deploy
 # (and once the Docker images are confirmed to build).
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
     paths-ignore:
       - '**.md'
       - 'LICENSE'
