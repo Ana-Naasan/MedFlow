@@ -10,10 +10,34 @@ hypotheses** about the patient's medications, interactions, conditions, and symp
 > hypothesis whose citations don't resolve. Nothing fabricated reaches the UI. The
 > system gathers and connects evidence; the clinician decides.
 
-⚠️ Research / demonstration software on **synthetic data only** — **not a medical
+⚠️ Research / demonstration software on **synthetic data only**, **not a medical
 device** and **not for clinical use**. See [DISCLAIMER.md](DISCLAIMER.md).
 
 ---
+
+## Highlights
+
+- **Schema-agnostic connectors over any database.** One `PostgresProvider` class
+  normalizes two deliberately-divergent institution schemas (a normalized one-table-per-resource
+  schema and a flat legacy single-table one) into the *same* FHIR R4B subset, selected by
+  a constructor argument. Adding a source is a small, registered provider.
+- **Cited, verifier-gated reasoning that cannot fabricate.** Every surfaced hypothesis must
+  cite `[ResourceType/id]` patient tags or evidence-card ids; a deterministic, no-model
+  **verifier re-checks every citation against the cache** and drops any hypothesis whose
+  citations don't resolve. If nothing survives, the packet abstains.
+- **Multi-source ingestion.** Five registered connectors across four classes: a mock FHIR
+  server, a clinical PDF, an HL7v2 ADT message, and two Postgres institutions, each
+  validating to a 6-resource FHIR R4B subset at its boundary.
+- **Char-offset provenance for documents.** PDF citations carry a page plus exact
+  `start`/`end` offsets and the verbatim snippet, with a `page_text[start:end] == snippet`
+  invariant the verifier can re-check before a quote is trusted.
+- **Five drug-safety knowledge sources.** RxNav (RxNorm resolution), openFDA (adverse
+  events + labels), DDInter (drug-drug interactions), Beers (AGS 2023 potentially-inappropriate
+  medications, age-gated ≥65), and ACB (anticholinergic cognitive burden) supply the
+  citable evidence cards.
+- **Honest about absence.** Coverage is computed per advertised capability, audit events are
+  written on every read, and safety-critical data gaps downgrade hypothesis confidence rather
+  than asserting safety from absence.
 
 ## How it works
 
@@ -52,14 +76,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and
 
 ## Repository layout
 
-- **`backend/`** — FastAPI service: FHIR subset + flattener, the connector/provider
+- **`backend/`**: FastAPI service holding the FHIR subset + flattener, the connector/provider
   registry, the Postgres cache + audit, the knowledge layer (RxNav / openFDA / DDInter /
   Beers / ACB), the reasoning core + verifier, and the typed API. Python 3.12.
-- **`frontend/`** — Next.js 16 + TypeScript clinician UI (TanStack Query + a typed
+- **`frontend/`**: Next.js 16 + TypeScript clinician UI (TanStack Query + a typed
   `openapi-fetch` client) that renders the decision packet and resolves citations.
-- **`docker-compose.yml`** — Postgres services for the app database plus the two
+- **`docker-compose.yml`**: Postgres services for the app database plus the two
   seeded institutions (`institution_a`, `institution_b`).
-- **`docs/`** — architecture, data sources, and deployment guides.
+- **`docs/`**: architecture, data sources, and deployment guides.
 
 ## Quick start
 
@@ -91,7 +115,7 @@ frontend's typed client is generated from that contract via `npm run gen:api`.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /patients/{id}/packet` | The `DecisionPacket` — cited hypotheses + data gaps + cache status (`X-Cache` header) |
+| `GET /patients/{id}/packet` | The `DecisionPacket`, cited hypotheses + data gaps + cache status (`X-Cache` header) |
 | `GET /patients/{id}/resource/{type}/{fhir_id}` | Resolve a patient-fact citation (with `source_span` when PDF-sourced) |
 | `GET /evidence/{card_id}` | Resolve a knowledge citation to its snippet + reference URL |
 | `POST /patients/{id}/refresh` | Force a connector re-pull |
@@ -114,10 +138,9 @@ All write/decision endpoints require a bearer **`DEV_TOKEN`** (rendered in Swagg
 
 ## Scope & limitations
 
-MedFlow is a focused, working demonstration of *cited, verifier-gated* clinical reasoning —
-not a complete product. Known boundaries, stated honestly:
+MedFlow is a focused, working demonstration of *cited, verifier-gated* clinical reasoning, not a complete product. Known boundaries, stated honestly:
 
-- **HL7v2 connector is a scaffold** — it parses ADT PID demographics into a `Patient`
+- **HL7v2 connector is a scaffold**: it parses ADT PID demographics into a `Patient`
   and openly self-advertises as partial; `AL1`→`AllergyIntolerance` mapping is not yet
   implemented.
 - **PDF extraction is deterministic** (`pdfplumber` text layer + frozen char-offset
@@ -132,11 +155,13 @@ not a complete product. Known boundaries, stated honestly:
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — components and data flow
-- [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) — knowledge datasets, licenses, provenance
-- [docs/DEPLOY.md](docs/DEPLOY.md) — container build + Google Cloud Run deployment
-- [CONTRIBUTING.md](CONTRIBUTING.md) — branching, PRs, and the test policy
-- [DISCLAIMER.md](DISCLAIMER.md) — safety and intended-use notice
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components and data flow
+- [docs/CONNECTORS.md](docs/CONNECTORS.md): the provider registry, the supported source types, and how to add a connector
+- [docs/CAPABILITIES.md](docs/CAPABILITIES.md): the knowledge sources, the cache + audit model, and the citation/verifier guarantees
+- [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md): knowledge datasets, licenses, provenance
+- [docs/DEPLOY.md](docs/DEPLOY.md): container build + Google Cloud Run deployment
+- [CONTRIBUTING.md](CONTRIBUTING.md): branching, PRs, and the test policy
+- [DISCLAIMER.md](DISCLAIMER.md): safety and intended-use notice
 
 ## License
 

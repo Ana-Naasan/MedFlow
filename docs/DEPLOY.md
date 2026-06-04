@@ -1,4 +1,4 @@
-# Deploy — backend + frontend to Google Cloud Run
+# Deploy: backend + frontend to Google Cloud Run
 
 ## How CI/CD works
 
@@ -15,7 +15,7 @@ confirming the images build.
 
 - Backend (FastAPI) → Cloud Run service `umraa-backend` (port 8080)
 - Frontend (Next.js, `output: standalone`) → Cloud Run service `umraa-frontend` (port 8080)
-- DB: seeded-local for now (no Cloud SQL yet — the local seeded path is the primary supported setup)
+- DB: seeded-local for now (no Cloud SQL yet, the local seeded path is the primary supported setup)
 - Images: published to GHCR; Cloud Run pulls from Artifact Registry (mirrored in CI)
 
 ## One-time GCP setup (owner: repo admin)
@@ -43,18 +43,18 @@ confirming the images build.
 ## GitHub config
 
 Repo **Secrets** (Settings → Secrets and variables → Actions → Secrets):
-- `GCP_SA_KEY` — paste the full contents of `key.json` (then delete the local file)
-- `GCP_PROJECT_ID` — the project ID
-- `DEV_TOKEN` — **required.** The shared bearer token. It gates both sides: it is baked
+- `GCP_SA_KEY`: paste the full contents of `key.json` (then delete the local file)
+- `GCP_PROJECT_ID`: the project ID
+- `DEV_TOKEN`: **required.** The shared bearer token. It gates both sides: it is baked
   into the frontend build as `NEXT_PUBLIC_API_TOKEN` *and* set on the backend Cloud Run
-  service — use the **same** value for both. If it is empty the backend returns 500 to
+  service, use the **same** value for both. If it is empty the backend returns 500 to
   every authenticated request and the frontend ships with no token.
-- `AUTH_SECRET` — **required.** next-auth (Auth.js) session-signing secret for the
+- `AUTH_SECRET`: **required.** next-auth (Auth.js) session-signing secret for the
   frontend. Generate with `openssl rand -base64 32`. (The Dockerfile placeholder only
   covers the build; the real value is injected at runtime.)
-- `GOOGLE_GENAI_API_KEY` — optional. Gemini reasoning key; the reasoning path degrades
+- `GOOGLE_GENAI_API_KEY`: optional. Gemini reasoning key; the reasoning path degrades
   gracefully (citation-safe scaffold) if it is absent.
-- `OPENFDA_API_KEY` — optional. openFDA knowledge key; the knowledge layer degrades
+- `OPENFDA_API_KEY`: optional. openFDA knowledge key; the knowledge layer degrades
   gracefully if it is absent.
 
 > GHCR push uses the workflow's built-in `GITHUB_TOKEN` (the job grants
@@ -69,5 +69,5 @@ Repo **Variables** (… → Variables):
 
 - `NEXT_PUBLIC_*` is baked at build time. First deploy backend → copy its Cloud Run URL into
   the `NEXT_PUBLIC_API_BASE_URL` variable → next merge rebuilds the frontend against it.
-- `key.json` is a long-lived secret — keep it only in the GitHub secret, never in the repo.
+- `key.json` is a long-lived secret, keep it only in the GitHub secret, never in the repo.
 - Local dev unchanged: `docker compose up` (Postgres) + `uvicorn backend.app.main:app` + `npm run dev`.

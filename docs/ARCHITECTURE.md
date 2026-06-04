@@ -15,25 +15,29 @@ connectors → FHIR R4B subset → Postgres cache (+audit) → tagged flattening
 
 ### 1. Connectors (`backend/app/providers/`)
 
-A read-only provider contract — `Provider(abc.ABC)` + `Capability` flags +
+A read-only provider contract, `Provider(abc.ABC)` + `Capability` flags +
 `FetchResult` / `Provenance` / `HealthStatus` dataclasses + a registry-dict factory.
 Every connector implements the same interface and is reachable through `POST /intake`:
 
-- **`MockFHIRProvider`** — fetches from a public HAPI FHIR `baseR4` server, projects to
+- **`MockFHIRProvider`**: fetches from a public HAPI FHIR `baseR4` server, projects to
   the subset, re-validates, and caches a local snapshot so the demo never depends on the
   live server.
-- **`PostgresProvider`** — reads two deliberately-different institution schemas (A and B)
+- **`PostgresProvider`**: reads two deliberately-different institution schemas (A and B)
   through explicit per-institution mapper functions that produce identical FHIR. Proves
   the integration story generalizes across schemas.
-- **`PDFProvider`** — extracts a frozen text-layer clinical PDF with `pdfplumber`,
+- **`PDFProvider`**: extracts a frozen text-layer clinical PDF with `pdfplumber`,
   persisting char-offset spans into `Provenance.span` so a citation can deep-link to the
   exact quote.
-- **`HL7v2Provider`** — a scaffold that parses one ADT message into `Patient`
+- **`HL7v2Provider`**: a scaffold that parses one ADT message into `Patient`
   demographics (self-advertised as partial).
 
 Partial fetches return what they could with `partial=True` + warnings (never a zeroed
 bundle); source errors normalize to a `ConnectorError` hierarchy that the API maps to a
 clean `502`.
+
+> See [CONNECTORS.md](CONNECTORS.md) for the schema-agnostic connector contract,
+> the per-institution Postgres mappers, char-offset provenance spans, and how to add
+> a new source type.
 
 ### 2. FHIR R4B subset + flattener (`backend/app/fhir/`)
 
@@ -42,30 +46,30 @@ MedicationStatement, Condition, Observation, AllergyIntolerance, Procedure) via
 `fhir.resources.R4B` at the boundary. A deterministic template **flattener** renders
 that subset to markdown where **every line is tagged `[ResourceType/id]`**, and always
 renders every clinical category with an explicit status (an absent category reads as
-*unknown*, never *none*). Raw FHIR JSON is never fed to the model — the tags are exactly
+*unknown*, never *none*). Raw FHIR JSON is never fed to the model, the tags are exactly
 what make the downstream citation checks decidable.
 
 ### 3. Postgres cache + audit (`backend/app/cache/`)
 
-- `cached_resource` — a JSONB store, one row per FHIR resource, with idempotent upsert.
+- `cached_resource`: a JSONB store, one row per FHIR resource, with idempotent upsert.
 - TTL **refresh-on-read**: an advisory-lock winner re-pulls and upserts while others
   serve cache; the response sets `X-Cache: HIT | REFRESH | MISS`.
-- `audit_event` — a row written on **every** read (resource, evidence, packet) and on
+- `audit_event`: a row written on **every** read (resource, evidence, packet) and on
   intake, attributed to the authenticated token subject.
-- `evidence_card` — persists external knowledge snippets, each citable by a stable id.
+- `evidence_card`: persists external knowledge snippets, each citable by a stable id.
 
 ### 4. Knowledge layer (`backend/app/knowledge/`)
 
 Each medication is normalized and enriched, then turned into citable **evidence cards**:
 
-- **RxNav (NLM)** — normalize each medication to RxCUI (+ ingredient RxCUI + ATC);
+- **RxNav (NLM)**: normalize each medication to RxCUI (+ ingredient RxCUI + ATC);
   medications that don't resolve are flagged, never silently dropped.
-- **openFDA** — single-drug adverse-reaction (FAERS) + label lookup keyed by
+- **openFDA**: single-drug adverse-reaction (FAERS) + label lookup keyed by
   RxCUI / generic name, with response caching and recorded fixtures so CI never calls
   the live API.
-- **DDInter** — drug-pair interaction lookup, bridged from RxNorm via RxNav.
-- **AGS Beers 2023** — geriatric potentially-inappropriate-medication rules.
-- **ACB** — anticholinergic cognitive burden scoring.
+- **DDInter**: drug-pair interaction lookup, bridged from RxNorm via RxNav.
+- **AGS Beers 2023**: geriatric potentially-inappropriate-medication rules.
+- **ACB**: anticholinergic cognitive burden scoring.
 
 The layer degrades gracefully: if an external key is missing or a service is down, it
 returns fewer cards rather than failing the request.
@@ -84,9 +88,13 @@ evidence-card ids. Then two **model-free** gates run:
 
 Confidence tiers are assigned from the *source*, never self-reported. When zero
 hypotheses survive, the packet abstains ("no well-supported explanation found") rather
-than inventing one. A minimum-input contract surfaces "limited input — low confidence"
-below a data threshold and emits explicit data-gap items (absence is *unknown*, never
+than inventing one. Below a data threshold, a minimum-input contract flags the result as low
+confidence and emits explicit data-gap items (absence is *unknown*, never
 *safe*).
+
+> See [CAPABILITIES.md](CAPABILITIES.md) for the full reasoning pipeline, the two
+> citation gates, deterministic confidence-tier derivation, and the knowledge-evidence
+> and audit-trail details.
 
 ### 6. API + UI (`backend/app/api/`, `frontend/`)
 
