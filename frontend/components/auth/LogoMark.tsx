@@ -8,7 +8,7 @@ const LOGO_SIZES = {
 
 type LogoSize = keyof typeof LOGO_SIZES
 
-function UmraaMarkIcon({ size }: { size: number }) {
+function MedFlowMarkIcon({ size }: { size: number }) {
   return (
     <svg
       width={size}
@@ -45,7 +45,7 @@ export function MfLogoMark({ size = "sm", className }: LogoMarkProps) {
         className
       )}
     >
-      <UmraaMarkIcon size={px} />
+      <MedFlowMarkIcon size={px} />
     </span>
   )
 }

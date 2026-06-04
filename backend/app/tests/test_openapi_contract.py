@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from backend.app.main import app
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-# The single Umraa frontend keeps its OpenAPI spec + generated client under lib/api/.
+# The single MedFlow frontend keeps its OpenAPI spec + generated client under lib/api/.
 _COMMITTED_OPENAPI = "frontend/lib/api/openapi.json"
 
 

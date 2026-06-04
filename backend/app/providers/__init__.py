@@ -1,4 +1,4 @@
-"""Provider abstractions for Umraa."""
+"""Provider abstractions for MedFlow."""
 
 from pathlib import Path
 
@@ -21,7 +21,7 @@ from backend.app.providers.registry import ConnectorNotFound, build, list_connec
 from backend.app.seeds.sample_hl7 import SAMPLE_ADT_A01
 
 # Default-to-seeded sources: a connector is configured for a source at registration
-# (the plugin model — point it at a hospital's feed once), and Umraa's own seeded
+# (the plugin model — point it at a hospital's feed once), and MedFlow's own seeded
 # sources make the project work standalone. The optional kwargs let a caller/test
 # override the source without changing the /intake contract.
 _SEEDED_PDF = Path(__file__).parent.parent / "seeds" / "sample_clinical.pdf"

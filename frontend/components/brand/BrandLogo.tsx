@@ -42,7 +42,7 @@ export function BrandLogo({
             wordmarkClassName
           )}
         >
-          Umraa
+          MedFlow
         </span>
       )}
     </span>
@@ -53,7 +53,7 @@ export function BrandLogo({
       <Link
         href={href}
         className="rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mf-accent)]"
-        aria-label="Umraa home"
+        aria-label="MedFlow home"
       >
         {lockup}
       </Link>

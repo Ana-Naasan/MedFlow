@@ -1,5 +1,5 @@
 /**
- * Hand-written, UI-friendly mirror of the Umraa backend `/packet` body. These
+ * Hand-written, UI-friendly mirror of the MedFlow backend `/packet` body. These
  * shapes are now also described in the OpenAPI schema (see lib/api/generated.ts);
  * these stay as convenient, well-documented aliases the components import directly.
  *

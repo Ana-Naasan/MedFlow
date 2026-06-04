@@ -1,6 +1,6 @@
-# Umraa
+# MedFlow
 
-**Polypharmacy decision support that never fabricates.** Umraa ingests a patient's
+**Polypharmacy decision support that never fabricates.** MedFlow ingests a patient's
 record from heterogeneous medical-institution sources, normalizes everything into a
 unified FHIR R4 subset, and runs a reasoning core that surfaces **cited, tiered
 hypotheses** about the patient's medications, interactions, conditions, and symptoms.
@@ -114,7 +114,7 @@ All write/decision endpoints require a bearer **`DEV_TOKEN`** (rendered in Swagg
 
 ## Scope & limitations
 
-Umraa is a focused, working demonstration of *cited, verifier-gated* clinical reasoning —
+MedFlow is a focused, working demonstration of *cited, verifier-gated* clinical reasoning —
 not a complete product. Known boundaries, stated honestly:
 
 - **HL7v2 connector is a scaffold** — it parses ADT PID demographics into a `Patient`
@@ -140,8 +140,8 @@ not a complete product. Known boundaries, stated honestly:
 
 ## License
 
-Umraa is released under the **[Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+MedFlow is released under the **[Creative Commons Attribution-NonCommercial-ShareAlike 4.0
 International License (CC BY-NC-SA 4.0)](LICENSE)**. You are free to use, share, and build
-on it, provided you **give credit to Umraa as the source**, **don't use it for commercial
+on it, provided you **give credit to MedFlow as the source**, **don't use it for commercial
 purposes** (i.e. to make money), and **license your own versions under these same terms**.
 For a commercial arrangement, contact the copyright holder.

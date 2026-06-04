@@ -110,7 +110,7 @@ export function ClinicianLogin() {
             <motion.div variants={itemVariants}>
               <p className="mf-eyebrow mb-2">Clinician sign in</p>
               <h1 className="mf-display text-2xl font-semibold">
-                Sign in to Umraa
+                Sign in to MedFlow
               </h1>
               <p className="mt-1 text-sm" style={{ color: "var(--mf-ink-soft)" }}>
                 Your clinical dashboard
@@ -124,7 +124,7 @@ export function ClinicianLogin() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="dr.name@umraa.ca"
+                    placeholder="dr.name@medflow.ca"
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -194,7 +194,7 @@ export function ClinicianLogin() {
               <p>
                 <span style={{ color: "var(--mf-ink-soft)" }}>Email: </span>
                 <code className="font-mono text-xs" style={{ color: "var(--mf-accent)" }}>
-                  dr.wu@umraa.ca
+                  dr.wu@medflow.ca
                 </code>
               </p>
               <p>

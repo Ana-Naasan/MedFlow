@@ -1,6 +1,6 @@
-# Umraa — clinician frontend
+# MedFlow — clinician frontend
 
-Next.js app: the Umraa clinician UI (synthetic data only — **no real PHI**), serving the polypharmacy decision packet from the Umraa FastAPI backend.
+Next.js app: the MedFlow clinician UI (synthetic data only — **no real PHI**), serving the polypharmacy decision packet from the MedFlow FastAPI backend.
 
 ## Prerequisites
 
@@ -37,10 +37,10 @@ npm run build && npm run start
 
 | Role | Email | Password |
 |------|-------|----------|
-| Clinician | `dr.wu@umraa.ca` | `password123` |
-| Clinician | `dr.chen@umraa.ca` | `password123` |
-| Patient | `patient@umraa.ca` | `password123` |
-| Patient | `member@umraa.ca` | `password123` |
+| Clinician | `dr.wu@medflow.ca` | `password123` |
+| Clinician | `dr.chen@medflow.ca` | `password123` |
+| Patient | `patient@medflow.ca` | `password123` |
+| Patient | `member@medflow.ca` | `password123` |
 
 Clinician entry: `/login/clinician`.
 

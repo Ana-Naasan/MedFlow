@@ -1,1 +1,1 @@
-"""Application package for Umraa backend."""
+"""Application package for MedFlow backend."""

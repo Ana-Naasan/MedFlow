@@ -43,9 +43,9 @@ class _CaptureHandler(logging.Handler):
 
 
 @pytest.fixture
-def capture_umraa() -> Iterator[_CaptureHandler]:
+def capture_medflow() -> Iterator[_CaptureHandler]:
     handler = _CaptureHandler()
-    logger = logging.getLogger("umraa")
+    logger = logging.getLogger("medflow")
     logger.addHandler(handler)
     try:
         yield handler
@@ -59,7 +59,7 @@ def capture_umraa() -> Iterator[_CaptureHandler]:
 def test_structured_formatter_emits_valid_json_with_context():
     formatter = StructuredFormatter()
     record = logging.LogRecord(
-        name="umraa.api",
+        name="medflow.api",
         level=logging.WARNING,
         pathname=__file__,
         lineno=1,
@@ -72,7 +72,7 @@ def test_structured_formatter_emits_valid_json_with_context():
     parsed = json.loads(formatter.format(record))
 
     assert parsed["level"] == "WARNING"
-    assert parsed["logger"] == "umraa.api"
+    assert parsed["logger"] == "medflow.api"
     assert parsed["message"] == "hello world"
     assert parsed["context"] == {"path": "/health", "status": 200}
 
@@ -87,8 +87,8 @@ def test_configure_logging_is_idempotent():
     assert again.level == logging.DEBUG
 
 
-def test_get_logger_is_namespaced_under_umraa():
-    assert get_logger("api").name == "umraa.api"
+def test_get_logger_is_namespaced_under_medflow():
+    assert get_logger("api").name == "medflow.api"
 
 
 # --- connector error categorization -----------------------------------------
@@ -152,24 +152,24 @@ def test_warnings_without_partial_flag_still_surface():
     assert notice["warnings"] == ["one record skipped"]
 
 
-def test_log_partial_fetch_emits_structured_warning(capture_umraa: _CaptureHandler):
+def test_log_partial_fetch_emits_structured_warning(capture_medflow: _CaptureHandler):
     logger = get_logger("test")
     result = _fetch_result(partial=True, warnings=["partial"])
 
     notice = log_partial_fetch(logger, result)
 
     assert notice is not None
-    assert len(capture_umraa.records) == 1
-    record = capture_umraa.records[0]
+    assert len(capture_medflow.records) == 1
+    record = capture_medflow.records[0]
     assert record.levelno == logging.WARNING
     assert record.context["partial"] is True
 
 
-def test_log_partial_fetch_stays_silent_when_complete(capture_umraa: _CaptureHandler):
+def test_log_partial_fetch_stays_silent_when_complete(capture_medflow: _CaptureHandler):
     logger = get_logger("test")
     result = _fetch_result(partial=False, warnings=[])
 
     notice = log_partial_fetch(logger, result)
 
     assert notice is None
-    assert capture_umraa.records == []
+    assert capture_medflow.records == []

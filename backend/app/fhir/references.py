@@ -1,7 +1,7 @@
 """Rewrite Synthea urn:uuid references to stable ResourceType/id references.
 
 Synthea (and some other synthetic-data pipelines) emits internal references
-as ``urn:uuid:<uuid>`` strings.  *Umraa* needs every citation to stay stable
+as ``urn:uuid:<uuid>`` strings.  *MedFlow* needs every citation to stay stable
 across pipeline runs, so we rewrite those UUID references to the permanent
 ``ResourceType/id`` assigned during ingestion.
 

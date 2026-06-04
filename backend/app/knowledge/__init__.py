@@ -1,4 +1,4 @@
-"""Drug-knowledge layer for Umraa.
+"""Drug-knowledge layer for MedFlow.
 
 Exposes loaders for vendored seed datasets:
   load_ddinter()      — DDInter 2.0 drug-interaction pairs

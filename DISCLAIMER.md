@@ -1,6 +1,6 @@
 # Disclaimer
 
-**Umraa is research and demonstration software. It is not a medical device, and it is
+**MedFlow is research and demonstration software. It is not a medical device, and it is
 not intended for clinical use.**
 
 - **Not for clinical decision-making.** Nothing produced by this software should be used

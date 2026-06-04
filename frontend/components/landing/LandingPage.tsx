@@ -9,7 +9,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo"
 
 type Role = "patient" | "clinician"
 
-const ROLE_STORAGE_KEY = "umraa-preferred-role"
+const ROLE_STORAGE_KEY = "medflow-preferred-role"
 
 /**
  * Read the stored role preference once, on first render. Guarded for SSR

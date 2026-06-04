@@ -19,14 +19,14 @@ interface MockPatientUser {
 const MOCK_DOCTORS: ReadonlyArray<MockDoctor> = [
   {
     id: "1",
-    email: "dr.wu@umraa.ca",
+    email: "dr.wu@medflow.ca",
     password: "password123",
     name: "Dr. Bella Wu",
     role: "Family Physician",
   },
   {
     id: "2",
-    email: "dr.chen@umraa.ca",
+    email: "dr.chen@medflow.ca",
     password: "password123",
     name: "Dr. James Chen",
     role: "Internist",
@@ -36,13 +36,13 @@ const MOCK_DOCTORS: ReadonlyArray<MockDoctor> = [
 const MOCK_PATIENTS: ReadonlyArray<MockPatientUser> = [
   {
     id: "p1",
-    email: "patient@umraa.ca",
+    email: "patient@medflow.ca",
     password: "password123",
     name: "Alex Morgan",
   },
   {
     id: "p2",
-    email: "member@umraa.ca",
+    email: "member@medflow.ca",
     password: "password123",
     name: "Jordan Lee",
   },

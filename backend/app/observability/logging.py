@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
-_ROOT_LOGGER_NAME = "umraa"
+_ROOT_LOGGER_NAME = "medflow"
 _configured = False
 
 
@@ -27,7 +27,7 @@ class StructuredFormatter(logging.Formatter):
 
 
 def configure_logging(level: int | str = logging.INFO) -> logging.Logger:
-    """Attach a single structured handler to the umraa root logger.
+    """Attach a single structured handler to the medflow root logger.
 
     Idempotent: repeated calls update the level but never stack handlers.
     """
@@ -44,5 +44,5 @@ def configure_logging(level: int | str = logging.INFO) -> logging.Logger:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a namespaced child of the umraa logger (e.g. ``umraa.api``)."""
+    """Return a namespaced child of the medflow logger (e.g. ``medflow.api``)."""
     return logging.getLogger(f"{_ROOT_LOGGER_NAME}.{name}")

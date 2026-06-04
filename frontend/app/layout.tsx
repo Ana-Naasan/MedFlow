@@ -26,7 +26,7 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Umraa — Virtual care for every employee",
+  title: "MedFlow — Virtual care for every employee",
   description: "Clinical-grade care, calmly delivered.",
 };
 

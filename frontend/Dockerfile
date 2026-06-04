@@ -1,4 +1,4 @@
-# Umraa frontend (Next.js 16) image — multi-stage, uses Next "standalone" output.
+# MedFlow frontend (Next.js 16) image — multi-stage, uses Next "standalone" output.
 # Built from the frontend/ context:
 #   docker build -f frontend/Dockerfile -t umraa-frontend ./frontend
 FROM node:22-alpine AS deps

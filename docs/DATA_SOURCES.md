@@ -1,6 +1,6 @@
 # Data Sources
 
-Umraa runs entirely on **synthetic patient data** and **publicly available reference
+MedFlow runs entirely on **synthetic patient data** and **publicly available reference
 datasets**. No real patient data is used anywhere in the repository or the reasoning
 path.
 

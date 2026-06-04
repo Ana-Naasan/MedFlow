@@ -28,7 +28,7 @@ def create_app() -> FastAPI:
     configure_logging()
     logger = get_logger("api")
     app = FastAPI(
-        title="Umraa API",
+        title="MedFlow API",
         version="0.1.0",
         description="Polypharmacy decision packet API.",
         separate_input_output_schemas=False,

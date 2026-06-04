@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Umraa API",
+    "title": "MedFlow API",
     "description": "Polypharmacy decision packet API.",
     "version": "0.1.0"
   },

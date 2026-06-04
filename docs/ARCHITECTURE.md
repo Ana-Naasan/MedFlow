@@ -1,6 +1,6 @@
 # Architecture
 
-Umraa turns a heterogeneous patient record into a set of **cited, verifier-gated
+MedFlow turns a heterogeneous patient record into a set of **cited, verifier-gated
 hypotheses** about polypharmacy risk. The design is organized so that a single
 deterministic invariant holds end to end: *nothing reaches the clinician unless it
 carries a citation that resolves to a real, cached source.*

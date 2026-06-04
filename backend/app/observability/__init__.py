@@ -1,4 +1,4 @@
-"""Structured logging and partial-data surfacing for Umraa."""
+"""Structured logging and partial-data surfacing for MedFlow."""
 
 from backend.app.observability.logging import (
     StructuredFormatter,

@@ -1,4 +1,4 @@
-"""FHIR utilities for Umraa."""
+"""FHIR utilities for MedFlow."""
 
 from backend.app.fhir.flatten import flatten_to_tagged_text
 

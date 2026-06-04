@@ -13,12 +13,12 @@ We deliberately refine that: an in-subset resource that fails validation is *dro
 and surfaced as an honest data gap* rather than 4xx-ing the whole intake. A single
 malformed resource must never zero a partial fetch (CONN-06; "absence =
 unknown, never none"). Out-of-subset types are an expected projection boundary —
-Umraa reasons over only these 6 types — so they are filtered silently, not flagged.
+MedFlow reasons over only these 6 types — so they are filtered silently, not flagged.
 """
 
 from __future__ import annotations
 
-# The R4B subset Umraa reasons over. Lazy-loaded so importing this module does not
+# The R4B subset MedFlow reasons over. Lazy-loaded so importing this module does not
 # require ``fhir.resources`` at import time (mirrors providers.mock_fhir).
 _VALIDATORS: dict[str, type] = {}
 

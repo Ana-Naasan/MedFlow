@@ -182,7 +182,7 @@ export function PatientLogin() {
               <p className="font-medium mb-1">Demo account</p>
               <p>
                 <span style={{ color: "var(--mf-ink-soft)" }}>Email: </span>
-                <code className="font-mono text-xs">patient@umraa.ca</code>
+                <code className="font-mono text-xs">patient@medflow.ca</code>
               </p>
               <p>
                 <span style={{ color: "var(--mf-ink-soft)" }}>Password: </span>

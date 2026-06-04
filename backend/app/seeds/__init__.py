@@ -1,4 +1,4 @@
-"""Vendored drug-knowledge seed files for Umraa.
+"""Vendored drug-knowledge seed files for MedFlow.
 
 Files in this directory:
   ddinter.csv          — DDInter 2.0 drug-interaction pairs (10,000 rows)

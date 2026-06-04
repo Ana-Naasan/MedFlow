@@ -112,9 +112,9 @@ export const BILLING_CODE_REFERENCE = [
 ] as const
 
 export const CLINIC_STAFF = [
-  { name: "Dr. Bella Wu", role: "Physician", email: "dr.wu@umraa.ca" },
-  { name: "Dr. James Chen", role: "Physician", email: "dr.chen@umraa.ca" },
-  { name: "Dr. Eleanor Park", role: "Physician", email: "dr.park@umraa.ca" },
-  { name: "MOA - Front Desk", role: "Medical office assistant", email: "frontdesk@umraa.ca" },
-  { name: "Clinic Admin", role: "Administrator", email: "admin@umraa.ca" },
+  { name: "Dr. Bella Wu", role: "Physician", email: "dr.wu@medflow.ca" },
+  { name: "Dr. James Chen", role: "Physician", email: "dr.chen@medflow.ca" },
+  { name: "Dr. Eleanor Park", role: "Physician", email: "dr.park@medflow.ca" },
+  { name: "MOA - Front Desk", role: "Medical office assistant", email: "frontdesk@medflow.ca" },
+  { name: "Clinic Admin", role: "Administrator", email: "admin@medflow.ca" },
 ] as const
